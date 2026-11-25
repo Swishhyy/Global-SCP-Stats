@@ -7,7 +7,7 @@ namespace GlobalSCPStats.Core.Experience;
 public sealed class ExperienceAwards
 {
     private readonly ExperienceOptions options;
-    private readonly Dictionary<string, Budget> budgets = new Dictionary<string, Budget>();
+    private readonly Dictionary<string, Budget> budgets = [];
 
     public ExperienceAwards(ExperienceOptions options)
     {
@@ -46,16 +46,14 @@ public sealed class ExperienceAwards
 
     private sealed class Budget
     {
-        public Dictionary<string, double> LastAward { get; } = new Dictionary<string, double>();
-        public Queue<Awarded> Awards { get; } = new Queue<Awarded>();
+        public Dictionary<string, double> LastAward { get; } = [];
+        public Queue<Awarded> Awards { get; } = [];
         public int Total { get; set; }
         public double LastAwarded { get; set; }
     }
 
-    private sealed class Awarded
+    private sealed class Awarded(double time, int amount)
     {
-        public Awarded(double time, int amount) { Time = time; Amount = amount; }
-        public double Time { get; }
-        public int Amount { get; }
+        public double Time { get; } = time; public int Amount { get; } = amount;
     }
 }

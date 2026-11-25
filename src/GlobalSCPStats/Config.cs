@@ -38,7 +38,7 @@ public sealed class Config : IConfig
     [Description("Keep existing staff, supporter, and other badges instead of replacing them with reward badges.")]
     public bool PreserveExistingBadges { get; set; } = true;
 
-    public List<RewardBadge> RewardBadges { get; set; } = new List<RewardBadge> { new RewardBadge() };
+    public List<RewardBadge> RewardBadges { get; set; } = [new RewardBadge()];
 
     [DefaultValue(""), YamlMember(DefaultValuesHandling = OptionalSetting)]
     [Description("Manual mode only. Omit this for one-time setup using GSS_SETUP_CODE.")]

@@ -9,11 +9,10 @@ using H = Exiled.Events.Handlers;
 namespace GlobalSCPStats.Events;
 
 // Only action names and counts are retained; event arguments are never serialized.
-public sealed class ActionEvents
+public sealed class ActionEvents(StatsRuntime runtime)
 {
-    private readonly StatsRuntime runtime;
-    private readonly List<Action> unsubscribe = new List<Action>();
-    public ActionEvents(StatsRuntime runtime) => this.runtime = runtime;
+    private readonly StatsRuntime runtime = runtime;
+    private readonly List<Action> unsubscribe = [];
 
     public void Register()
     {
@@ -138,13 +137,13 @@ public sealed class ActionEvents
 
     private void Bind<T>(Event<T> source, string action) where T : IPlayerEvent
     {
-        CustomEventHandler<T> handler = ev =>
+        void handler(T ev)
         {
             if (ev is IDeniableEvent deniable && !deniable.IsAllowed) return;
             if (!StatsEvents.IsEligible(ev.Player)) return;
             StatsEvents.SynchronizePrivacy(runtime, ev.Player);
             runtime.Action(ev.Player.UserId, action);
-        };
+        }
         source.Subscribe(handler);
         unsubscribe.Add(() => source.Unsubscribe(handler));
     }

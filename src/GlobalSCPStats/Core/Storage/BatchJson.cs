@@ -19,6 +19,6 @@ public static class BatchJson
         return (StatsBatch)Serializer().ReadObject(stream)!;
     }
 
-    private static DataContractJsonSerializer Serializer() => new DataContractJsonSerializer(typeof(StatsBatch),
+    private static DataContractJsonSerializer Serializer() => new(typeof(StatsBatch),
         new DataContractJsonSerializerSettings { UseSimpleDictionaryFormat = true });
 }

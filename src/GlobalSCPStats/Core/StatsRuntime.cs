@@ -15,22 +15,22 @@ namespace GlobalSCPStats.Core;
 
 public sealed partial class StatsRuntime : IDisposable
 {
-    private readonly object gate = new object();
+    private readonly object gate = new();
     private readonly StatsTracker tracker;
     private readonly DurableOutbox outbox;
     private readonly string serverId;
     private readonly double checkpointSeconds;
     private readonly StatsApiClient? api;
     private readonly Action<string> log;
-    private readonly CancellationTokenSource lifetime = new CancellationTokenSource();
+    private readonly CancellationTokenSource lifetime = new();
     private readonly Stopwatch clock = Stopwatch.StartNew();
     private Task? worker;
     private volatile bool uploadsBlocked;
     private bool disposed;
-    private readonly HashSet<string> online = new HashSet<string>();
-    private readonly Queue<string> profileRequests = new Queue<string>();
-    private readonly HashSet<string> requestedProfiles = new HashSet<string>();
-    private readonly Dictionary<string, CachedProfile> profiles = new Dictionary<string, CachedProfile>();
+    private readonly HashSet<string> online = [];
+    private readonly Queue<string> profileRequests = new();
+    private readonly HashSet<string> requestedProfiles = [];
+    private readonly Dictionary<string, CachedProfile> profiles = [];
 
     public StatsRuntime(string serverId, DurableOutbox outbox, PrivacyPreferences privacy, TimeSpan checkpointInterval, StatsApiClient? api, Action<string> log, ExperienceOptions? experience = null)
     {
@@ -244,10 +244,8 @@ public sealed partial class StatsRuntime : IDisposable
         }
     }
 
-    private sealed class CachedProfile
+    private sealed class CachedProfile(ProgressProfile profile, double updated)
     {
-        public CachedProfile(ProgressProfile profile, double updated) { Profile = profile; Updated = updated; }
-        public ProgressProfile Profile { get; }
-        public double Updated { get; }
+        public ProgressProfile Profile { get; } = profile; public double Updated { get; } = updated;
     }
 }

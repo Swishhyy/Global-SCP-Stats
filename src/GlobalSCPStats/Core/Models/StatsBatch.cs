@@ -20,5 +20,5 @@ public sealed class StatsBatch
     public string CreatedAt { get; set; } = DateTimeOffset.UtcNow.ToString("O");
 
     [DataMember(Name = "players", Order = 5)]
-    public List<PlayerStats> Players { get; set; } = new List<PlayerStats>();
+    public List<PlayerStats> Players { get; set; } = [];
 }

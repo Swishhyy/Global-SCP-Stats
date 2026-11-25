@@ -13,7 +13,7 @@ using GlobalSCPStats.Core.Storage;
 
 namespace GlobalSCPStats.Core.Transport;
 
-public sealed class ConnectorEnrollment
+public sealed class ConnectorEnrollment(string directory, byte[] storageKey)
 {
     public const string SetupEnvironmentVariable = "GSS_SETUP_CODE";
     public const string UploadEndpoint = "https://api.globalscpstats.com/v1/stats/batches";
@@ -22,14 +22,8 @@ public sealed class ConnectorEnrollment
     private const string AutomaticEndpoint = "https://api.globalscpstats.com/v1/enrollment/automatic";
     private const string StateFileName = "enrollment.state";
 
-    private readonly string path;
-    private readonly EncryptedFileStore store;
-
-    public ConnectorEnrollment(string directory, byte[] storageKey)
-    {
-        path = Path.Combine(directory, StateFileName);
-        store = new EncryptedFileStore(storageKey);
-    }
+    private readonly string path = Path.Combine(directory, StateFileName);
+    private readonly EncryptedFileStore store = new(storageKey);
 
     public Task<UploadOptions> GetCredentialsAsync(string? setupCode, string serverName, CancellationToken cancellationToken)
         => GetCredentialsAsync(setupCode, serverName, new HttpClientHandler { AllowAutoRedirect = false }, cancellationToken);

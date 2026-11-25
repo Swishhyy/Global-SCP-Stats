@@ -9,7 +9,7 @@ namespace GlobalSCPStats.Commands;
 public sealed class MyStatsCommand : ICommand
 {
     public string Command => "mystats";
-    public string[] Aliases => Array.Empty<string>();
+    public string[] Aliases => [];
     public string Description => "Show your stats for this connection.";
 
     public bool Execute(ArraySegment<string> arguments, ICommandSender sender, out string response)

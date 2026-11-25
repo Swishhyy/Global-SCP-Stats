@@ -24,11 +24,11 @@ public sealed class ProgressProfile
 
     // Accepted for older API responses; reward decisions use server-local rules.
     [DataMember(Name = "reward_ids")]
-    public List<string> RewardIds { get; set; } = new List<string>();
+    public List<string> RewardIds { get; set; } = [];
 
-    public ProgressProfile Copy() => new ProgressProfile
+    public ProgressProfile Copy() => new()
     {
         UserId = UserId, TotalXp = TotalXp, Level = Level, Revision = Revision,
-        RewardIds = new List<string>(RewardIds), ServerStats = ServerStats?.Copy(),
+        RewardIds = [.. RewardIds], ServerStats = ServerStats?.Copy(),
     };
 }

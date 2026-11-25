@@ -8,7 +8,7 @@ namespace GlobalSCPStats.Commands;
 public sealed class StatsStatusCommand : ICommand
 {
     public string Command => "gstats";
-    public string[] Aliases => new[] { "globalstats" };
+    public string[] Aliases => ["globalstats"];
     public string Description => "Show connector status. Requires globalstats.admin.";
 
     public bool Execute(ArraySegment<string> arguments, ICommandSender sender, out string response)

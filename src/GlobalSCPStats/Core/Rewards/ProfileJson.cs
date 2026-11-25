@@ -22,7 +22,7 @@ public static class ProfileJson
         if (profile == null || profile.UserId != expectedUserId || profile.TotalXp < 0 || profile.Level < 1 ||
             profile.Revision < 0)
             throw new SerializationException("Invalid progress profile.");
-        profile.RewardIds ??= new List<string>();
+        profile.RewardIds ??= [];
         if (profile.RewardIds.Count > 128) throw new SerializationException("Invalid progress profile.");
         if (profile.ServerStats != null)
         {

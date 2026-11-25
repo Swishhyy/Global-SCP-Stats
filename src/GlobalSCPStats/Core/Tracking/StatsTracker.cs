@@ -7,16 +7,14 @@ using GlobalSCPStats.Core.Experience;
 namespace GlobalSCPStats.Core.Tracking;
 
 // The runtime serializes access to this tracker, including checkpoint creation.
-public sealed class StatsTracker
+public sealed class StatsTracker(ExperienceOptions? options = null)
 {
-    private readonly Dictionary<string, Session> sessions = new Dictionary<string, Session>();
-    private readonly Dictionary<string, PlayerStats> pending = new Dictionary<string, PlayerStats>();
-    private readonly HashSet<string> participants = new HashSet<string>();
-    private readonly HashSet<string> escaped = new HashSet<string>();
+    private readonly Dictionary<string, Session> sessions = [];
+    private readonly Dictionary<string, PlayerStats> pending = [];
+    private readonly HashSet<string> participants = [];
+    private readonly HashSet<string> escaped = [];
     private bool roundActive;
-    private readonly ExperienceAwards experience;
-
-    public StatsTracker(ExperienceOptions? options = null) => experience = new ExperienceAwards(options ?? new ExperienceOptions());
+    private readonly ExperienceAwards experience = new(options ?? new ExperienceOptions());
 
     public int OnlinePlayers => sessions.Count;
 
@@ -128,7 +126,7 @@ public sealed class StatsTracker
     {
         experience.PruneIdle(now);
         foreach (Session session in sessions.Values) Advance(session, now);
-        return pending.Values.Where(p => p.HasChanges).Select(p => p.Copy()).ToList();
+        return [.. pending.Values.Where(p => p.HasChanges).Select(p => p.Copy())];
     }
 
     // Called only after the snapshot has been written to the durable outbox.

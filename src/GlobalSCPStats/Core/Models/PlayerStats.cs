@@ -25,7 +25,7 @@ public sealed class PlayerStats
     public long Escapes { get; set; }
 
     [DataMember(Name = "actions", Order = 7)]
-    public Dictionary<string, long> Actions { get; set; } = new Dictionary<string, long>();
+    public Dictionary<string, long> Actions { get; set; } = [];
 
     [DataMember(Name = "xp_earned", Order = 8)]
     public long XpEarned { get; set; }

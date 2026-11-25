@@ -8,7 +8,7 @@ namespace GlobalSCPStats.Core.Storage;
 
 public sealed class DurableOutbox
 {
-    private readonly object gate = new object();
+    private readonly object gate = new();
     private readonly string directory;
     private readonly EncryptedFileStore store;
     private readonly int maxBatches;
@@ -110,7 +110,7 @@ public sealed class DurableOutbox
         }
     }
 
-    private string[] Files() => Directory.GetFiles(directory, "*.gss").OrderBy(p => p, StringComparer.Ordinal).ToArray();
+    private string[] Files() => [.. Directory.GetFiles(directory, "*.gss").OrderBy(p => p, StringComparer.Ordinal)];
 }
 
 public sealed class QueuedBatch

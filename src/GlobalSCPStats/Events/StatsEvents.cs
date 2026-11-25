@@ -11,11 +11,10 @@ using ServerEvents = Exiled.Events.Handlers.Server;
 
 namespace GlobalSCPStats.Events;
 
-public sealed class StatsEvents
+public sealed class StatsEvents(StatsRuntime runtime)
 {
-    private readonly StatsRuntime runtime;
+    private readonly StatsRuntime runtime = runtime;
     private CoroutineHandle privacyLoop;
-    public StatsEvents(StatsRuntime runtime) => this.runtime = runtime;
 
     public static bool IsEligible(Player? player) => player != null && player.IsVerified && !player.IsNPC && !player.IsHost && StatsTracker.IsSupportedUser(player.UserId);
 

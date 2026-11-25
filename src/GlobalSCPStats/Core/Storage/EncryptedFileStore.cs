@@ -7,15 +7,15 @@ namespace GlobalSCPStats.Core.Storage;
 
 public sealed class EncryptedFileStore
 {
-    private static readonly byte[] Magic = { 71, 83, 83, 49 }; // GSS1
+    private static readonly byte[] Magic = [71, 83, 83, 49]; // GSS1
     private readonly byte[] encryptionKey;
     private readonly byte[] authenticationKey;
 
     public EncryptedFileStore(byte[] key)
     {
         if (key == null || key.Length != 64) throw new CryptographicException("A 64-byte storage key is required.");
-        encryptionKey = key.Take(32).ToArray();
-        authenticationKey = key.Skip(32).ToArray();
+        encryptionKey = [.. key.Take(32)];
+        authenticationKey = [.. key.Skip(32)];
     }
 
     public void WriteNew(string path, byte[] plaintext) => Write(path, plaintext, false);
@@ -33,9 +33,9 @@ public sealed class EncryptedFileStore
         aes.GenerateIV();
         using var encryptor = aes.CreateEncryptor();
         byte[] ciphertext = encryptor.TransformFinalBlock(plaintext, 0, plaintext.Length);
-        byte[] payload = Magic.Concat(aes.IV).Concat(ciphertext).ToArray();
+        byte[] payload = [.. Magic.Concat(aes.IV).Concat(ciphertext)];
         using var hmac = new HMACSHA256(authenticationKey);
-        byte[] envelope = payload.Concat(hmac.ComputeHash(payload)).ToArray();
+        byte[] envelope = [.. payload.Concat(hmac.ComputeHash(payload))];
         string temporary = Path.Combine(Path.GetDirectoryName(path)!,
             Path.GetFileNameWithoutExtension(path) + "." + Guid.NewGuid().ToString("N") + Path.GetExtension(path) + ".tmp");
         try
@@ -71,7 +71,7 @@ public sealed class EncryptedFileStore
 
         using var aes = Aes.Create();
         aes.Key = encryptionKey;
-        aes.IV = envelope.Skip(4).Take(16).ToArray();
+        aes.IV = [.. envelope.Skip(4).Take(16)];
         aes.Mode = CipherMode.CBC;
         aes.Padding = PaddingMode.PKCS7;
         using var decryptor = aes.CreateDecryptor();

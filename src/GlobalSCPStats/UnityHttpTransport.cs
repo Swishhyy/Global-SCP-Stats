@@ -13,7 +13,7 @@ namespace GlobalSCPStats;
 
 internal sealed class UnityHttpTransport : IDisposable
 {
-    private readonly Queue<Request> waiting = new Queue<Request>();
+    private readonly Queue<Request> waiting = new();
     private readonly CoroutineHandle pump;
     private UnityWebRequest? web;
     private Request? current;
@@ -89,10 +89,12 @@ internal sealed class UnityHttpTransport : IDisposable
 
     private void Start(Request request)
     {
-        web = new UnityWebRequest(request.Url, UnityWebRequest.kHttpVerbPOST);
-        web.redirectLimit = 0;
-        web.timeout = 10;
-        web.uploadHandler = new UploadHandlerRaw(request.Body);
+        web = new UnityWebRequest(request.Url, UnityWebRequest.kHttpVerbPOST)
+        {
+            redirectLimit = 0,
+            timeout = 10,
+            uploadHandler = new UploadHandlerRaw(request.Body)
+        };
         download = new BoundedDownload();
         web.downloadHandler = download;
         web.SetRequestHeader("Content-Type", "application/json");
@@ -160,7 +162,7 @@ internal sealed class UnityHttpTransport : IDisposable
 
     private sealed class BoundedDownload() : DownloadHandlerScript(new byte[8192])
     {
-        private readonly MemoryStream buffer = new MemoryStream();
+        private readonly MemoryStream buffer = new();
 
         protected override bool ReceiveData(byte[] data, int dataLength)
         {

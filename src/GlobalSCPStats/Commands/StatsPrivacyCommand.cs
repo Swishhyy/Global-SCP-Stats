@@ -9,7 +9,7 @@ namespace GlobalSCPStats.Commands;
 public sealed class StatsPrivacyCommand : ICommand
 {
     public string Command => "statsprivacy";
-    public string[] Aliases => new[] { "gprivacy" };
+    public string[] Aliases => ["gprivacy"];
     public string Description => "View the stats privacy notice, allow collection, or stop collection and remove pending local data.";
 
     public bool Execute(ArraySegment<string> arguments, ICommandSender sender, out string response)

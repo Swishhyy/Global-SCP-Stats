@@ -14,7 +14,7 @@ namespace GlobalSCPStats.Core.Privacy;
 public sealed class PrivacyPreferences
 {
     private const string AutomaticCollection = "server-policy-v1";
-    private readonly object gate = new object();
+    private readonly object gate = new();
     private readonly string path;
     private readonly EncryptedFileStore store;
     private readonly byte[] subjectKey;
@@ -191,7 +191,7 @@ public sealed class PrivacyPreferences
         return value;
     }
 
-    private static DataContractJsonSerializer Serializer() => new DataContractJsonSerializer(typeof(PreferenceState),
+    private static DataContractJsonSerializer Serializer() => new(typeof(PreferenceState),
         new DataContractJsonSerializerSettings { UseSimpleDictionaryFormat = true });
 
     private static void ValidateUser(string id)
@@ -203,7 +203,7 @@ public sealed class PrivacyPreferences
     private sealed class PreferenceState
     {
         [DataMember] public int Version { get; set; } = 2;
-        [DataMember] public Dictionary<string, Preference> Preferences { get; set; } = new Dictionary<string, Preference>();
+        [DataMember] public Dictionary<string, Preference> Preferences { get; set; } = [];
     }
 
     [DataContract]
