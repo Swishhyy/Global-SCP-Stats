@@ -26,9 +26,6 @@ public sealed class Config : IConfig
     public bool IsEnabled { get; set; } = true;
     public bool Debug { get; set; }
 
-    [Description("Enable this server's stats collection. Game Do Not Track and local opt-outs always take priority.")]
-    public bool CollectionEnabled { get; set; }
-
     [Description("Collection follows the game's DNT flag by default. DNT always overrides local approval and server settings.")]
     public PrivacyOptions Privacy { get; set; } = new PrivacyOptions();
 

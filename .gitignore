@@ -16,6 +16,8 @@ artifacts/
 *.gss.tmp
 privacy.state
 enrollment.state
+storage.key
+storage.key.*.tmp
 privacy.*.state.tmp
 
 # User-specific files (MonoDevelop/Xamarin Studio)

@@ -1,7 +1,6 @@
 global_scp_stats:
   is_enabled: true
   debug: false
-  collection_enabled: false
   privacy:
     require_player_opt_in: false
     notice_url: ''

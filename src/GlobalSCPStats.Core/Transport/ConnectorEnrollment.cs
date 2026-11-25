@@ -19,6 +19,7 @@ public sealed class ConnectorEnrollment
     public const string UploadEndpoint = "https://api.globalscpstats.com/v1/stats/batches";
     public const string ProfileEndpoint = "https://api.globalscpstats.com/v1/profiles/lookup";
     private const string RedeemEndpoint = "https://api.globalscpstats.com/v1/enrollment/redeem";
+    private const string AutomaticEndpoint = "https://api.globalscpstats.com/v1/enrollment/automatic";
     private const string StateFileName = "enrollment.state";
 
     private readonly string path;
@@ -30,14 +31,24 @@ public sealed class ConnectorEnrollment
         store = new EncryptedFileStore(storageKey);
     }
 
-    public async Task<UploadOptions> GetCredentialsAsync(string? setupCode, CancellationToken cancellationToken)
+    public async Task<UploadOptions> GetCredentialsAsync(
+        string? setupCode, string serverName, CancellationToken cancellationToken)
     {
         using var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false });
-        return await GetCredentialsAsync(setupCode, client, cancellationToken).ConfigureAwait(false);
+        int retrySeconds = 5;
+        while (true)
+        {
+            try { return await GetCredentialsAsync(setupCode, client, cancellationToken, serverName).ConfigureAwait(false); }
+            catch (EnrollmentException error) when (error.Retryable)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(retrySeconds), cancellationToken).ConfigureAwait(false);
+                retrySeconds = Math.Min(retrySeconds * 2, 300);
+            }
+        }
     }
 
     internal async Task<UploadOptions> GetCredentialsAsync(
-        string? setupCode, HttpClient client, CancellationToken cancellationToken)
+        string? setupCode, HttpClient client, CancellationToken cancellationToken, string? serverName = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
         bool exists = File.Exists(path);
@@ -47,11 +58,12 @@ public sealed class ConnectorEnrollment
         if (state?.ServerId != null)
             return Options(state);
 
-        if (setupCode == null || !Regex.IsMatch(setupCode, @"\Aenroll_[a-zA-Z0-9_-]{43}\z"))
-            throw new EnrollmentException("Set GSS_SETUP_CODE to the one-time code from the operator.");
+        if (string.IsNullOrWhiteSpace(setupCode)) setupCode = null;
+        if (setupCode != null && !Regex.IsMatch(setupCode, @"\Aenroll_[a-zA-Z0-9_-]{43}\z"))
+            throw new EnrollmentException("GSS_SETUP_CODE is invalid. Remove it for automatic enrollment.");
 
-        string codeHash = Hash(setupCode);
-        if (state?.SetupCodeHash != codeHash)
+        string? codeHash = setupCode == null ? null : Hash(setupCode);
+        if (state == null || (setupCode != null && state.SetupCodeHash != codeHash))
         {
             byte[] tokenBytes = new byte[32];
             using (var random = RandomNumberGenerator.Create()) random.GetBytes(tokenBytes);
@@ -64,17 +76,27 @@ public sealed class ConnectorEnrollment
         // Save the pending token before the request so a lost response is safe to retry.
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(10));
-        using var request = new HttpRequestMessage(HttpMethod.Post, RedeemEndpoint);
-        request.Content = new ByteArrayContent(Encode(new Claim { SetupCode = setupCode, TokenHash = Hash(state.Token) }));
+        using var request = new HttpRequestMessage(HttpMethod.Post, setupCode == null ? AutomaticEndpoint : RedeemEndpoint);
+        if (setupCode == null)
+        {
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", state.Token);
+            request.Content = new ByteArrayContent(Encode(new AutomaticClaim { Name = NormalizeName(serverName) }));
+        }
+        else request.Content = new ByteArrayContent(Encode(new Claim { SetupCode = setupCode, TokenHash = Hash(state.Token) }));
         request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
         try
         {
             using HttpResponseMessage response = await client.SendAsync(
                 request, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
             if ((int)response.StatusCode == 409)
-                throw new EnrollmentException("The setup code is expired, was already used, or its receipt is invalid.");
+                throw new EnrollmentException(setupCode == null
+                    ? "This connector registration was revoked. Contact the stats operator."
+                    : "The setup code is expired or used. Remove it to use automatic enrollment.");
             if (!response.IsSuccessStatusCode)
-                throw new EnrollmentException($"Enrollment returned HTTP {(int)response.StatusCode}. Restart to retry.");
+            {
+                int status = (int)response.StatusCode;
+                throw new EnrollmentException($"Enrollment returned HTTP {status}.", status == 408 || status == 429 || status >= 500);
+            }
             using Stream stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
             using var body = new MemoryStream();
             byte[] buffer = new byte[1024];
@@ -92,12 +114,20 @@ public sealed class ConnectorEnrollment
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            throw new EnrollmentException("The enrollment request timed out. Restart with the same setup code to retry.");
+            throw new EnrollmentException("The enrollment request timed out.", retryable: true);
         }
         catch (HttpRequestException)
         {
-            throw new EnrollmentException("The enrollment API could not be reached. Restart with the same setup code to retry.");
+            throw new EnrollmentException("The enrollment API could not be reached.", retryable: true);
         }
+    }
+
+    private static string NormalizeName(string? value)
+    {
+        string name = Regex.Replace(value ?? string.Empty, @"<[^<>]*>|[\p{Cc}\p{Cf}]", string.Empty).Trim();
+        if (name.Length > 80)
+            name = name.Substring(0, char.IsHighSurrogate(name[79]) ? 79 : 80).TrimEnd();
+        return name.Length == 0 ? "SCP:SL server" : name;
     }
 
     private static UploadOptions Options(State state)
@@ -130,6 +160,13 @@ public sealed class ConnectorEnrollment
     }
 
     [DataContract]
+    private sealed class AutomaticClaim
+    {
+        [DataMember(Name = "name")]
+        public string Name { get; set; } = string.Empty;
+    }
+
+    [DataContract]
     private sealed class State
     {
         [DataMember(Name = "token", IsRequired = true)]
@@ -159,5 +196,10 @@ public sealed class ConnectorEnrollment
 
 public sealed class EnrollmentException : Exception
 {
-    internal EnrollmentException(string message) : base(message) { }
+    internal bool Retryable { get; }
+
+    internal EnrollmentException(string message, bool retryable = false) : base(message)
+    {
+        Retryable = retryable;
+    }
 }

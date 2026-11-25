@@ -35,15 +35,7 @@ public sealed class Plugin : Plugin<Config>
     public override void OnEnabled()
     {
         Instance = this;
-        try
-        {
-            if (!Config.CollectionEnabled)
-            {
-                StartupStatus = "Stats collection is off. Set collection_enabled to true when ready to collect.";
-                Log.Info(StartupStatus);
-            }
-            else ConfigureConnector();
-        }
+        try { ConfigureConnector(); }
         catch (Exception error) { ReportStartupError(error); }
         base.OnEnabled();
     }
@@ -52,22 +44,21 @@ public sealed class Plugin : Plugin<Config>
     {
         Config.Validate();
         string? encodedKey = Environment.GetEnvironmentVariable(Config.StorageKeyEnvironmentVariable);
-        if (string.IsNullOrWhiteSpace(encodedKey))
-            throw new ArgumentException("A storage key environment variable is required.");
-        byte[] storageKey = Convert.FromBase64String(encodedKey!);
         string directory = string.IsNullOrWhiteSpace(Config.DataDirectory)
             ? Path.Combine(Paths.Configs, "GlobalSCPStats", Server.Port.ToString())
             : Config.DataDirectory;
+        byte[] storageKey = StorageKey.LoadOrCreate(directory, encodedKey);
 
         if (string.IsNullOrWhiteSpace(Config.ServerId))
         {
-            StartupStatus = "Loading or enrolling the connector.";
+            StartupStatus = "Loading saved credentials or connecting to the stats API.";
             var enrollment = new ConnectorEnrollment(directory, storageKey);
             var cancellation = new CancellationTokenSource();
             enrollmentCancellation = cancellation;
             string? code = Environment.GetEnvironmentVariable(ConnectorEnrollment.SetupEnvironmentVariable);
+            string name = Server.Name;
             CancellationToken token = cancellation.Token;
-            Task<UploadOptions> task = Task.Run(() => enrollment.GetCredentialsAsync(code, token), token);
+            Task<UploadOptions> task = Task.Run(() => enrollment.GetCredentialsAsync(code, name, token), token);
             enrollmentLoop = Timing.RunCoroutine(FinishEnrollment(task, directory, storageKey));
             return;
         }

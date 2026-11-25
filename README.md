@@ -1,8 +1,8 @@
 # Global SCP Stats
 
-An open-source SCP: Secret Laboratory connector for server and global statistics, action XP, and milestone rewards. Version **0.2.5** targets **EXILED 9.15.2** and **.NET Framework 4.8 / x64**.
+An open-source SCP: Secret Laboratory connector for server and global statistics, action XP, and milestone rewards. Version **0.2.6** targets **EXILED 9.15.2** and **.NET Framework 4.8 / x64**.
 
-This is a development build. Server collection defaults to **off**. Once enabled, player collection follows the game's **Do Not Track** flag by default: DNT on blocks tracking, while DNT off permits it unless the player has additionally opted out locally. A separate allow command is not needed for normal participation. The website/API and lightweight Discord Worker are maintained in the separate Site and Discord-Bot repositories. Discord application activation is still required for the linked-account privacy commands.
+This is a development build. The plugin connects and starts tracking when EXILED loads it. Player collection follows the game's **Do Not Track** flag and saved privacy preferences. The website/API and lightweight Discord Worker live in the separate Site and Discord-Bot repositories.
 
 ## What works
 
@@ -24,17 +24,18 @@ The project finds the dedicated server in the default Windows Steam library. For
 
 ## Connect a server
 
-1. Install `GlobalSCPStats.dll` and let EXILED generate the config. On upgrade, remove the old `GlobalSCPStats.Core.dll` from `EXILED/Plugins/dependencies`. See [example-config.yml](examples/example-config.yml).
-2. Ask the Global SCP Stats operator for a one-time code and set `GSS_SETUP_CODE` in the server's protected environment. The generated YAML is ready for automatic enrollment.
-3. Set `GSS_STORAGE_KEY` to a base64-encoded **64-byte cryptographically random key** in the server environment. Preserve this key separately from the connector's data directory. It protects the saved connector credentials, queued stats, and privacy preferences.
-4. Configure `privacy.notice_url` and `notice_version` for your player notice. Set `collection_enabled: true` when ready to collect, then restart the server.
-5. Run `gstats` in Remote Admin to see the assigned server ID and upload status. Once enrolled, remove `GSS_SETUP_CODE` from the environment. The connector uses the ID and upload token from the encrypted `enrollment.state` file on future starts.
+1. Put `GlobalSCPStats.dll` in `EXILED/Plugins` and start or restart the server. On upgrade from a two-DLL build, remove `GlobalSCPStats.Core.dll` from `EXILED/Plugins/dependencies`. EXILED generates the [plugin settings](examples/example-config.yml).
+2. Run `gstats` in Remote Admin to see the assigned server ID and upload status. The connector retries temporary enrollment failures automatically.
 
-Existing and self-hosted servers can still use manual setup. Set `server_id` and `upload_endpoint` in the YAML and supply `GSS_API_TOKEN` through the environment. The optional HTTPS `profile_endpoint` must use the same host and port as uploads. For local-only testing, set a manual server ID and leave the endpoints blank.
+New installs generate their storage key and upload token. Keep the data directory across restarts. It contains the protected `storage.key` and encrypted `enrollment.state`, along with the encrypted outbox and privacy preferences. Existing installs that supplied `GSS_STORAGE_KEY` must keep that key. A previously issued `GSS_SETUP_CODE` is optional.
+
+The old `collection_enabled` setting has been retired. To pause the plugin before starting an upgraded server, set `is_enabled: false`. Set `privacy.notice_url` and `notice_version` when publishing your player notice.
+
+Self-hosted stats backends can still use manual setup. Set `server_id` and `upload_endpoint` in the YAML and supply `GSS_API_TOKEN` through the environment. The optional HTTPS `profile_endpoint` must use the same host and port as uploads. For local-only testing, set a manual server ID and leave the endpoints blank.
 
 EXILED omits blank connection fields and default storage settings when it writes the YAML. It preserves configured overrides. To tune local storage, add `checkpoint_interval_seconds` (default 30), `max_queued_batches` (default 10000), `max_queue_age_hours` (default 72), or `data_directory` (default `EXILED/configs/GlobalSCPStats/<port>`) under `global_scp_stats`.
 
-Keep secret values in the hosting panel's protected environment settings or a service secret store. The optional YAML fields `api_token_environment_variable` and `storage_key_environment_variable` only change which environment variable names the plugin reads.
+Keep any manually supplied secrets in the hosting panel's protected environment or a service secret store. The optional YAML fields `api_token_environment_variable` and `storage_key_environment_variable` change which environment variable names the plugin reads.
 
 `privacy.require_player_opt_in` now defaults to `false`. DNT is always respected, and `.statsprivacy allow` cannot override it. A local `.statsprivacy off` remains effective even after toggling DNT; `.statsprivacy allow` clears that extra local opt-out while DNT is off. Optional stricter servers can set `require_player_opt_in: true` to also require saved approval and a configured notice URL. Restart after privacy-policy changes. DNT being off is a collection preference, not by itself a determination of lawful basis or valid consent.
 
