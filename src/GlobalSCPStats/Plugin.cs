@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -24,13 +25,16 @@ public sealed class Plugin : Plugin<Config>
     public override Version RequiredExiledVersion => new Version(9, 15, 2);
     public static Plugin? Instance { get; private set; }
     public StatsRuntime? Runtime { get; private set; }
-    internal string StartupStatus { get; private set; } = "The connector is not running.";
+    internal string StartupStatus => startupStatus;
     internal string? ActiveServerId { get; private set; }
     private StatsEvents? events;
     private ActionEvents? actions;
     private BadgeRewards? badges;
     private CoroutineHandle? enrollmentLoop;
     private CancellationTokenSource? enrollmentCancellation;
+    private UnityHttpTransport? http;
+    private volatile string startupStatus = "The connector is not running.";
+    private string startupStep = "validating settings";
 
     public override void OnEnabled()
     {
@@ -47,18 +51,23 @@ public sealed class Plugin : Plugin<Config>
         string directory = string.IsNullOrWhiteSpace(Config.DataDirectory)
             ? Path.Combine(Paths.Configs, "GlobalSCPStats", Server.Port.ToString())
             : Config.DataDirectory;
+        startupStep = "opening encrypted storage";
         byte[] storageKey = StorageKey.LoadOrCreate(directory, encodedKey);
 
         if (string.IsNullOrWhiteSpace(Config.ServerId))
         {
-            StartupStatus = "Loading saved credentials or connecting to the stats API.";
+            startupStatus = "Loading saved credentials or connecting to the stats API.";
+            startupStep = "registering with the stats API";
             var enrollment = new ConnectorEnrollment(directory, storageKey);
+            http = new UnityHttpTransport();
+            var handler = http.CreateHandler();
             var cancellation = new CancellationTokenSource();
             enrollmentCancellation = cancellation;
             string? code = Environment.GetEnvironmentVariable(ConnectorEnrollment.SetupEnvironmentVariable);
             string name = Server.Name;
             CancellationToken token = cancellation.Token;
-            Task<UploadOptions> task = Task.Run(() => enrollment.GetCredentialsAsync(code, name, token), token);
+            Task<UploadOptions> task = Task.Run(() => enrollment.GetCredentialsAsync(
+                code, name, handler, token, message => startupStatus = message));
             enrollmentLoop = Timing.RunCoroutine(FinishEnrollment(task, directory, storageKey));
             return;
         }
@@ -89,7 +98,8 @@ public sealed class Plugin : Plugin<Config>
 
     private void StartRuntime(string directory, byte[] storageKey, string serverId, UploadOptions? upload)
     {
-        StatsApiClient? api = upload == null ? null : new StatsApiClient(upload);
+        startupStep = "starting the stats service";
+        StatsApiClient? api = upload == null ? null : new StatsApiClient(upload, (http ??= new UnityHttpTransport()).CreateHandler());
         try
         {
             var outbox = new DurableOutbox(directory, Config.MaxQueuedBatches, storageKey, TimeSpan.FromHours(Config.MaxQueueAgeHours));
@@ -127,10 +137,14 @@ public sealed class Plugin : Plugin<Config>
     private void ReportStartupError(Exception error)
     {
         // Only enrollment exceptions carry messages that are safe for the server log.
-        StartupStatus = error is EnrollmentException
+        Exception cause = error.GetBaseException();
+        startupStatus = error is EnrollmentException
             ? error.Message
-            : $"Could not start ({error.GetType().Name}). Check your storage key, configuration and data directory.";
-        Log.Error("Global SCP Stats: " + StartupStatus);
+            : $"Could not start while {startupStep} ({cause.GetType().Name}).";
+        var method = new StackTrace(cause, false).GetFrame(0)?.GetMethod();
+        Log.Error($"Global SCP Stats: {StartupStatus} [{method?.DeclaringType?.FullName}.{method?.Name}]");
+        http?.Dispose();
+        http = null;
     }
 
     public override void OnDisabled()
@@ -145,6 +159,8 @@ public sealed class Plugin : Plugin<Config>
         badges?.Stop();
         try { Runtime?.Dispose(); }
         catch { Log.Error("Could not save all stats during shutdown. Check the outbox and storage permissions."); }
+        http?.Dispose();
+        http = null;
         Runtime = null;
         events = null;
         actions = null;

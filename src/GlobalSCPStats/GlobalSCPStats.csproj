@@ -21,6 +21,10 @@
       <HintPath>$(GameManagedPath)/UnityEngine.PhysicsModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestModule" Condition="Exists('$(GameManagedPath)/UnityEngine.UnityWebRequestModule.dll')">
+      <HintPath>$(GameManagedPath)/UnityEngine.UnityWebRequestModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="Mirror" Condition="Exists('$(GameManagedPath)/Mirror.dll')">
       <HintPath>$(GameManagedPath)/Mirror.dll</HintPath>
       <Private>false</Private>
@@ -31,7 +35,7 @@
     </Reference>
   </ItemGroup>
   <Target Name="ValidateGameReferences" BeforeTargets="ResolveReferences">
-    <Error Condition="!Exists('$(GameManagedPath)/UnityEngine.CoreModule.dll') Or !Exists('$(GameManagedPath)/UnityEngine.PhysicsModule.dll') Or !Exists('$(GameManagedPath)/Mirror.dll') Or !Exists('$(GameManagedPath)/Assembly-CSharp-firstpass.dll')"
+    <Error Condition="!Exists('$(GameManagedPath)/UnityEngine.CoreModule.dll') Or !Exists('$(GameManagedPath)/UnityEngine.PhysicsModule.dll') Or !Exists('$(GameManagedPath)/UnityEngine.UnityWebRequestModule.dll') Or !Exists('$(GameManagedPath)/Mirror.dll') Or !Exists('$(GameManagedPath)/Assembly-CSharp-firstpass.dll')"
            Text="SCP:SL dedicated server assemblies were not found in '$(GameManagedPath)'. Set SL_REFERENCES to the server's SCPSL_Data/Managed directory and restart Visual Studio, or pass -p:GameManagedPath when building from the command line." />
   </Target>
 </Project>

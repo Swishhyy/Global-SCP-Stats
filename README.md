@@ -1,6 +1,6 @@
 # Global SCP Stats
 
-An open-source SCP: Secret Laboratory connector for server and global statistics, action XP, and milestone rewards. Version **0.2.6** targets **EXILED 9.15.2** and **.NET Framework 4.8 / x64**.
+An open-source SCP: Secret Laboratory connector for server and global statistics, action XP, and milestone rewards. Version **0.2.7** targets **EXILED 9.15.2** and **.NET Framework 4.8 / x64**.
 
 This is a development build. The plugin connects and starts tracking when EXILED loads it. Player collection follows the game's **Do Not Track** flag and saved privacy preferences. The website/API and lightweight Discord Worker live in the separate Site and Discord-Bot repositories.
 

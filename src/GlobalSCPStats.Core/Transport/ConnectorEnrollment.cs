@@ -31,16 +31,21 @@ public sealed class ConnectorEnrollment
         store = new EncryptedFileStore(storageKey);
     }
 
+    public Task<UploadOptions> GetCredentialsAsync(string? setupCode, string serverName, CancellationToken cancellationToken)
+        => GetCredentialsAsync(setupCode, serverName, new HttpClientHandler { AllowAutoRedirect = false }, cancellationToken);
+
     public async Task<UploadOptions> GetCredentialsAsync(
-        string? setupCode, string serverName, CancellationToken cancellationToken)
+        string? setupCode, string serverName, HttpMessageHandler handler, CancellationToken cancellationToken,
+        Action<string>? reportRetry = null)
     {
-        using var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false });
+        using var client = new HttpClient(handler);
         int retrySeconds = 5;
         while (true)
         {
             try { return await GetCredentialsAsync(setupCode, client, cancellationToken, serverName).ConfigureAwait(false); }
             catch (EnrollmentException error) when (error.Retryable)
             {
+                reportRetry?.Invoke($"{error.Message} Retrying in {retrySeconds} seconds.");
                 await Task.Delay(TimeSpan.FromSeconds(retrySeconds), cancellationToken).ConfigureAwait(false);
                 retrySeconds = Math.Min(retrySeconds * 2, 300);
             }

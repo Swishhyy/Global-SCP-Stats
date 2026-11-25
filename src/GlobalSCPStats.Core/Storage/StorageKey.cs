@@ -1,11 +1,12 @@
 using System;
 using System.IO;
 using System.Linq;
-using System.Security.AccessControl;
 using System.Security.Cryptography;
-using System.Security.Principal;
 #if NET48
 using System.Runtime.InteropServices;
+#else
+using System.Security.AccessControl;
+using System.Security.Principal;
 #endif
 
 namespace GlobalSCPStats.Core.Storage;
@@ -79,12 +80,16 @@ public static class StorageKey
         if (OperatingSystem.IsWindows())
 #endif
         {
+#if NET48
+            RestrictWindowsKey(path);
+#else
             using var identity = WindowsIdentity.GetCurrent();
             var security = new FileSecurity();
             security.SetAccessRuleProtection(true, false);
             security.AddAccessRule(new FileSystemAccessRule(
                 identity.User!, FileSystemRights.FullControl, AccessControlType.Allow));
             new FileInfo(path).SetAccessControl(security);
+#endif
             return;
         }
 
@@ -98,6 +103,29 @@ public static class StorageKey
     }
 
 #if NET48
+    private static void RestrictWindowsKey(string path)
+    {
+        const uint protectedDacl = 0x80000004;
+        // Mono does not implement WindowsIdentity.User. Set a protected owner-only DACL directly.
+        if (!ConvertSecurityDescriptor("D:P(A;;FA;;;OW)", 1, out IntPtr descriptor, out _))
+            throw new IOException("Could not create permissions for the connector storage key.");
+        try
+        {
+            if (!SetFileSecurity(path, protectedDacl, descriptor))
+                throw new IOException("Could not restrict permissions on the connector storage key.");
+        }
+        finally { LocalFree(descriptor); }
+    }
+
+    [DllImport("advapi32.dll", EntryPoint = "ConvertStringSecurityDescriptorToSecurityDescriptorW", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool ConvertSecurityDescriptor(string sddl, uint revision, out IntPtr descriptor, out uint length);
+
+    [DllImport("advapi32.dll", EntryPoint = "SetFileSecurityW", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool SetFileSecurity(string path, uint information, IntPtr descriptor);
+
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr LocalFree(IntPtr address);
+
     [DllImport("libc", EntryPoint = "chmod", SetLastError = true)]
     private static extern int Chmod(string path, int mode);
 #endif
