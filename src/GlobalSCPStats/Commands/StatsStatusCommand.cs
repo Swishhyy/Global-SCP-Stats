@@ -18,13 +18,15 @@ public sealed class StatsStatusCommand : ICommand
             response = "Missing permission: globalstats.admin";
             return false;
         }
-        var runtime = Plugin.Instance?.Runtime;
+        var plugin = Plugin.Instance;
+        var runtime = plugin?.Runtime;
         if (runtime == null)
         {
-            response = "Global SCP Stats is not running. Check the server log and configuration.";
+            response = "Global SCP Stats: " + (plugin?.StartupStatus ?? "The connector is not running.");
             return false;
         }
-        response = $"Global SCP Stats {Plugin.Instance!.Version} | Players tracked: {runtime.OnlinePlayers} | Queued batches: {runtime.QueuedBatches} | Uploads: {runtime.UploadStatus} | Privacy: {runtime.PrivacyStatus}";
+        response = $"Global SCP Stats {plugin!.Version} | Server ID: {plugin.ActiveServerId} | Players tracked: {runtime.OnlinePlayers} | Queued batches: {runtime.QueuedBatches} | Uploads: {runtime.UploadStatus} | Privacy: {runtime.PrivacyStatus}";
         return true;
     }
 }
+

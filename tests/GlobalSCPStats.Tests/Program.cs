@@ -328,6 +328,7 @@ internal static partial class Program
         RunPrivacyTests();
         RunDoNotTrackTests();
         await TestTransport();
+        await TestEnrollment();
         await TestPrivacyTransport();
         await TestDoNotTrackTransport();
         Console.WriteLine($"\n{passed} passed, {failed} failed.");
@@ -510,4 +511,5 @@ internal static partial class Program
         }
     }
 }
+
 

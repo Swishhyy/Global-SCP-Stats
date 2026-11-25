@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Exiled.API.Features;
 using GlobalSCPStats.Core;
 using GlobalSCPStats.Core.Storage;
@@ -8,6 +11,7 @@ using GlobalSCPStats.Core.Transport;
 using GlobalSCPStats.Events;
 using GlobalSCPStats.Rewards;
 using GlobalSCPStats.Core.Privacy;
+using MEC;
 
 namespace GlobalSCPStats;
 
@@ -20,43 +24,86 @@ public sealed class Plugin : Plugin<Config>
     public override Version RequiredExiledVersion => new Version(9, 15, 2);
     public static Plugin? Instance { get; private set; }
     public StatsRuntime? Runtime { get; private set; }
+    internal string StartupStatus { get; private set; } = "The connector is not running.";
+    internal string? ActiveServerId { get; private set; }
     private StatsEvents? events;
     private ActionEvents? actions;
     private BadgeRewards? badges;
+    private CoroutineHandle? enrollmentLoop;
+    private CancellationTokenSource? enrollmentCancellation;
 
     public override void OnEnabled()
     {
         Instance = this;
-        StatsApiClient? api = null;
         try
         {
             if (!Config.CollectionEnabled)
             {
-                Log.Info("Stats collection is off. This development build requires collection_enabled for controlled testing.");
-                base.OnEnabled();
-                return;
+                StartupStatus = "Stats collection is off. Set collection_enabled to true when ready to collect.";
+                Log.Info(StartupStatus);
             }
-            Config.Validate();
-            string? encodedKey = Environment.GetEnvironmentVariable(Config.StorageKeyEnvironmentVariable);
-            if (string.IsNullOrWhiteSpace(encodedKey))
-                throw new ArgumentException("A storage key environment variable is required before collection can start.");
-            byte[] storageKey = Convert.FromBase64String(encodedKey!);
-            if (!string.IsNullOrWhiteSpace(Config.UploadEndpoint))
-            {
-                string? token = Environment.GetEnvironmentVariable(Config.ApiTokenEnvironmentVariable);
-                if (string.IsNullOrWhiteSpace(token))
-                    Log.Warn("API token environment variable is unset. Collecting locally; uploads are disabled.");
-                else
-                    api = new StatsApiClient(new UploadOptions(Config.UploadEndpoint, Config.ServerId, token!, Config.ProfileEndpoint));
-            }
-            else Log.Info("No upload endpoint configured. Stats will be saved locally.");
+            else ConfigureConnector();
+        }
+        catch (Exception error) { ReportStartupError(error); }
+        base.OnEnabled();
+    }
 
-            string directory = string.IsNullOrWhiteSpace(Config.DataDirectory)
-                ? Path.Combine(Paths.Configs, "GlobalSCPStats", Server.Port.ToString())
-                : Config.DataDirectory;
+    private void ConfigureConnector()
+    {
+        Config.Validate();
+        string? encodedKey = Environment.GetEnvironmentVariable(Config.StorageKeyEnvironmentVariable);
+        if (string.IsNullOrWhiteSpace(encodedKey))
+            throw new ArgumentException("A storage key environment variable is required.");
+        byte[] storageKey = Convert.FromBase64String(encodedKey!);
+        string directory = string.IsNullOrWhiteSpace(Config.DataDirectory)
+            ? Path.Combine(Paths.Configs, "GlobalSCPStats", Server.Port.ToString())
+            : Config.DataDirectory;
+
+        if (string.IsNullOrWhiteSpace(Config.ServerId))
+        {
+            StartupStatus = "Loading or enrolling the connector.";
+            var enrollment = new ConnectorEnrollment(directory, storageKey);
+            var cancellation = new CancellationTokenSource();
+            enrollmentCancellation = cancellation;
+            string? code = Environment.GetEnvironmentVariable(ConnectorEnrollment.SetupEnvironmentVariable);
+            CancellationToken token = cancellation.Token;
+            Task<UploadOptions> task = Task.Run(() => enrollment.GetCredentialsAsync(code, token), token);
+            enrollmentLoop = Timing.RunCoroutine(FinishEnrollment(task, directory, storageKey));
+            return;
+        }
+
+        UploadOptions? upload = null;
+        if (!string.IsNullOrWhiteSpace(Config.UploadEndpoint))
+        {
+            string? token = Environment.GetEnvironmentVariable(Config.ApiTokenEnvironmentVariable);
+            if (string.IsNullOrWhiteSpace(token))
+                Log.Warn("API token environment variable is unset. Collecting locally; uploads are disabled.");
+            else
+                upload = new UploadOptions(Config.UploadEndpoint, Config.ServerId, token!, Config.ProfileEndpoint);
+        }
+        else Log.Info("No upload endpoint configured. Stats will be saved locally.");
+        StartRuntime(directory, storageKey, Config.ServerId, upload);
+    }
+
+    private IEnumerator<float> FinishEnrollment(Task<UploadOptions> task, string directory, byte[] key)
+    {
+        while (!task.IsCompleted) yield return Timing.WaitForSeconds(0.1f);
+        try
+        {
+            UploadOptions upload = task.GetAwaiter().GetResult();
+            StartRuntime(directory, key, upload.ServerId, upload);
+        }
+        catch (Exception error) { ReportStartupError(error); }
+    }
+
+    private void StartRuntime(string directory, byte[] storageKey, string serverId, UploadOptions? upload)
+    {
+        StatsApiClient? api = upload == null ? null : new StatsApiClient(upload);
+        try
+        {
             var outbox = new DurableOutbox(directory, Config.MaxQueuedBatches, storageKey, TimeSpan.FromHours(Config.MaxQueueAgeHours));
             var privacy = new PrivacyPreferences(directory, storageKey, Config.Privacy);
-            Runtime = new StatsRuntime(Config.ServerId, outbox, privacy, TimeSpan.FromSeconds(Config.CheckpointIntervalSeconds), api, message => Log.Warn(message), Config.Experience);
+            Runtime = new StatsRuntime(serverId, outbox, privacy, TimeSpan.FromSeconds(Config.CheckpointIntervalSeconds), api, message => Log.Warn(message), Config.Experience);
             events = new StatsEvents(Runtime);
             events.Register();
             actions = new ActionEvents(Runtime);
@@ -70,9 +117,10 @@ public sealed class Plugin : Plugin<Config>
                 badges = new BadgeRewards(Runtime, Config.RewardBadges, Config.PreserveExistingBadges);
                 badges.Start();
             }
-            Log.Info($"Global SCP Stats {Version} enabled. Use gstats in Remote Admin for status.");
+            ActiveServerId = serverId;
+            Log.Info($"Global SCP Stats {Version} is tracking as {serverId}. Use gstats in Remote Admin for status.");
         }
-        catch (Exception error)
+        catch
         {
             events?.Unregister();
             actions?.Unregister();
@@ -81,14 +129,26 @@ public sealed class Plugin : Plugin<Config>
             try { if (Runtime != null) Runtime.Dispose(); else api?.Dispose(); }
             catch { Log.Error("Could not close stats storage after initialization failed."); }
             Runtime = null;
-            // Never print raw exception text: it can contain credentials or request details.
-            Log.Error($"Global SCP Stats could not start ({error.GetType().Name}). Check server_id, HTTPS endpoint, token/storage key environment variables, and storage permissions.");
+            throw;
         }
-        base.OnEnabled();
+    }
+
+    private void ReportStartupError(Exception error)
+    {
+        // Only enrollment exceptions carry messages that are safe for the server log.
+        StartupStatus = error is EnrollmentException
+            ? error.Message
+            : $"Could not start ({error.GetType().Name}). Check your storage key, configuration and data directory.";
+        Log.Error("Global SCP Stats: " + StartupStatus);
     }
 
     public override void OnDisabled()
     {
+        enrollmentCancellation?.Cancel();
+        if (enrollmentLoop.HasValue) Timing.KillCoroutines(enrollmentLoop.Value);
+        enrollmentCancellation?.Dispose();
+        enrollmentCancellation = null;
+        enrollmentLoop = null;
         events?.Unregister();
         actions?.Unregister();
         badges?.Stop();
@@ -98,8 +158,10 @@ public sealed class Plugin : Plugin<Config>
         events = null;
         actions = null;
         badges = null;
+        ActiveServerId = null;
         Instance = null;
         base.OnDisabled();
     }
 }
+
 

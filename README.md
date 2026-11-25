@@ -1,6 +1,6 @@
 # Global SCP Stats
 
-An open-source SCP: Secret Laboratory connector for server and global statistics, action XP, and milestone rewards. Version **0.2.3** targets **EXILED 9.15.2** and **.NET Framework 4.8 / x64**.
+An open-source SCP: Secret Laboratory connector for server and global statistics, action XP, and milestone rewards. Version **0.2.4** targets **EXILED 9.15.2** and **.NET Framework 4.8 / x64**.
 
 This is a development build. Server collection defaults to **off**. Once enabled, player collection follows the game's **Do Not Track** flag by default: DNT on blocks tracking, while DNT off permits it unless the player has additionally opted out locally. A separate allow command is not needed for normal participation. The website/API and lightweight Discord Worker are maintained in the separate Site and Discord-Bot repositories. Discord application activation is still required for the linked-account privacy commands.
 
@@ -22,14 +22,15 @@ This is a development build. Server collection defaults to **off**. Once enabled
 
 The project finds the dedicated server in the default Windows Steam library. For another library, set the Windows user environment variable `SL_REFERENCES` to that server's `SCPSL_Data/Managed` folder and restart Visual Studio. For a terminal build, run `dotnet build GlobalSCPStats.sln -c Release`.
 
-## Configure for controlled testing
+## Connect a server
 
 1. Install `GlobalSCPStats.dll` and let EXILED generate the config. On upgrade, remove the old `GlobalSCPStats.Core.dll` from `EXILED/Plugins/dependencies`. See [example-config.yml](examples/example-config.yml).
-2. Set `server_id` to the public identifier assigned by your backend. Keep it stable while queued batches exist. An empty upload URL supports local testing with a chosen test server ID.
-3. Set `GSS_STORAGE_KEY` in the server process environment to a base64-encoded **64-byte cryptographically random key**. Keep a protected backup separate from the outbox; it protects both queued batches and saved preferences. Changing or losing it makes existing data unreadable. The key is required even for local collection.
-4. For uploads, set `upload_endpoint` and the server's `GSS_API_TOKEN` environment variable. Optionally set `profile_endpoint` for global progress and badges. Both endpoints must use HTTPS on the same host and port.
-5. Enable `collection_enabled` only for controlled testing while the public-launch requirements in [Privacy and security](docs/PRIVACY.md) are incomplete. Restart the server after changing environment variables.
-6. Configure `privacy.notice_url` with the player-facing HTTPS notice and set its `notice_version`. Players can view the notice and status through `.statsprivacy info`. Eligibility normally follows the game's DNT flag. If the game applies a changed flag only on authentication, reconnect to apply it.
+2. Ask the Global SCP Stats operator for a one-time code. Set `GSS_SETUP_CODE` in the server's protected environment. Leave `server_id` and the endpoints blank to use managed enrollment.
+3. Set `GSS_STORAGE_KEY` to a base64-encoded **64-byte cryptographically random key** in the server environment. Preserve this key separately from the connector's data directory. It protects the saved connector credentials, queued stats, and privacy preferences.
+4. Configure `privacy.notice_url` and `notice_version` for your player notice. Set `collection_enabled: true` when ready to collect, then restart the server.
+5. Run `gstats` in Remote Admin to see the assigned server ID and upload status. Once enrolled, remove `GSS_SETUP_CODE` from the environment. Future restarts use the encrypted `enrollment.state` in the connector data directory.
+
+Existing and self-hosted servers can still use manual setup. Keep their existing `server_id`, HTTPS endpoints and `GSS_API_TOKEN`. The optional profile endpoint must use the same host and port as uploads. For local-only testing, set a manual server ID and leave the endpoints blank.
 
 Use the hosting panel's protected environment settings or a service secret store. The YAML contains the **names** of environment variables, not their secret values. Each server needs a separate token and storage key. Never ship a master token inside the connector.
 
@@ -106,3 +107,4 @@ AGPL-3.0-only. See [LICENSE](LICENSE). This implementation was written for this 
 ## Hosted services
 
 Website: https://globalscpstats.com. Server upload: https://api.globalscpstats.com/v1/stats/batches. Profile lookup: https://api.globalscpstats.com/v1/profiles/lookup. Both require your own server token. Privacy support: https://discord.gg/BtCq4kfdcV. The Discord bot will offer /link and /privacy after its application is configured.
+

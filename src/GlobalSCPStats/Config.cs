@@ -13,7 +13,7 @@ public sealed class Config : IConfig
     public bool IsEnabled { get; set; } = true;
     public bool Debug { get; set; }
 
-    [Description("Development build: collection is off by default. Enable only for controlled testing until the privacy/backend launch requirements are complete.")]
+    [Description("Enable this server's stats collection. Game Do Not Track and local opt-outs always take priority.")]
     public bool CollectionEnabled { get; set; }
 
     [Description("Collection follows the game's DNT flag by default. DNT always overrides local approval and server settings.")]
@@ -30,16 +30,16 @@ public sealed class Config : IConfig
 
     public List<RewardBadge> RewardBadges { get; set; } = new List<RewardBadge> { new RewardBadge() };
 
-    [Description("Public server ID assigned by your stats backend. Required before collection starts.")]
+    [Description("Leave empty for one-time setup using GSS_SETUP_CODE. Set an ID for an existing or manually configured server.")]
     public string ServerId { get; set; } = string.Empty;
 
-    [Description("Full HTTPS ingestion URL. Leave empty to collect locally without uploading.")]
+    [Description("Manual mode only: full HTTPS ingestion URL. Leave empty for local-only collection with a manual server ID.")]
     public string UploadEndpoint { get; set; } = string.Empty;
 
-    [Description("Optional HTTPS profile lookup URL, e.g. https://stats.example.com/v1/profiles/lookup. Must use the same host/port as uploads.")]
+    [Description("Manual mode only: optional HTTPS profile URL on the same host and port as uploads.")]
     public string ProfileEndpoint { get; set; } = string.Empty;
 
-    [Description("Name of the environment variable holding this server's API token. This is NOT the token itself.")]
+    [Description("Manual mode only: name of the environment variable holding this server's API token.")]
     public string ApiTokenEnvironmentVariable { get; set; } = "GSS_API_TOKEN";
 
     [Description("Environment variable containing a base64-encoded, random 64-byte storage key. Keep it separate from the outbox and API token.")]
@@ -62,8 +62,8 @@ public sealed class Config : IConfig
         Privacy.Validate();
         Experience.Validate();
         foreach (RewardBadge badge in RewardBadges) badge.Validate();
-        if (string.IsNullOrWhiteSpace(ServerId) || ServerId.Length > 128)
-            throw new ArgumentException("Set server_id to the public ID assigned by your backend (1 to 128 characters).");
+        if (ServerId?.Length > 128)
+            throw new ArgumentException("server_id must contain at most 128 characters.");
         if (CheckpointIntervalSeconds < 5 || CheckpointIntervalSeconds > 3600)
             throw new ArgumentException("checkpoint_interval_seconds must be between 5 and 3600.");
         if (MaxQueuedBatches < 1 || MaxQueuedBatches > 100000)
@@ -74,3 +74,4 @@ public sealed class Config : IConfig
             throw new ArgumentException("data_directory must be an absolute path.");
     }
 }
+

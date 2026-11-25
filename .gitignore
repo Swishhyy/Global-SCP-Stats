@@ -15,6 +15,7 @@ artifacts/
 *.gss
 *.gss.tmp
 privacy.state
+enrollment.state
 privacy.*.state.tmp
 
 # User-specific files (MonoDevelop/Xamarin Studio)
@@ -430,3 +431,4 @@ FodyWeavers.xsd
 
 # Official VS Code C# Dev Kit Extension exclusion
 #*.lscache
+
