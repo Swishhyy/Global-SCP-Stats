@@ -7,15 +7,6 @@ global_scp_stats:
     notice_url: ''
     notice_version: '1'
     show_join_reminder: true
-  server_id: ''
-  upload_endpoint: ''
-  profile_endpoint: ''
-  api_token_environment_variable: GSS_API_TOKEN
-  storage_key_environment_variable: GSS_STORAGE_KEY
-  checkpoint_interval_seconds: 30
-  max_queued_batches: 10000
-  max_queue_age_hours: 72
-  data_directory: ''
   experience:
     enabled: true
     default_reward: 1

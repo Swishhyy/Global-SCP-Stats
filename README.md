@@ -1,6 +1,6 @@
 # Global SCP Stats
 
-An open-source SCP: Secret Laboratory connector for server and global statistics, action XP, and milestone rewards. Version **0.2.4** targets **EXILED 9.15.2** and **.NET Framework 4.8 / x64**.
+An open-source SCP: Secret Laboratory connector for server and global statistics, action XP, and milestone rewards. Version **0.2.5** targets **EXILED 9.15.2** and **.NET Framework 4.8 / x64**.
 
 This is a development build. Server collection defaults to **off**. Once enabled, player collection follows the game's **Do Not Track** flag by default: DNT on blocks tracking, while DNT off permits it unless the player has additionally opted out locally. A separate allow command is not needed for normal participation. The website/API and lightweight Discord Worker are maintained in the separate Site and Discord-Bot repositories. Discord application activation is still required for the linked-account privacy commands.
 
@@ -9,7 +9,7 @@ This is a development build. Server collection defaults to **off**. Once enabled
 1. Tracks connected playtime, rounds participated in, kills, deaths, escapes, damage, healing, and a broad catalog of item, interaction, movement, objective, and SCP ability counters.
 2. Awards configurable XP for every tracked action by default. Disable XP globally or set individual rewards to zero while retaining all statistics. Cooldowns and a rolling per-player XP cap limit farming.
 3. Saves contributions in an encrypted local outbox before uploading. Ordinary retries preserve their batch IDs. Privacy removal can rewrite a mixed batch while keeping surviving contribution IDs stable, allowing a schema-v2 backend to prevent double-counting.
-4. Uses a separate, revocable API token per server. Tokens and storage keys come from environment variables, never from the DLL or source code.
+4. Generates a separate, revocable API token for each managed server and saves it encrypted. Manually registered servers supply their token through a protected environment variable.
 5. Fetches authoritative global XP and server-specific lifetime stats from the API. Each server evaluates its own configured badge metrics and thresholds, preserving existing badges by default. The backend defines no rewards.
 6. Includes server-local milestone evaluation for XP, levels, kills, escapes, rounds, playtime, and individual actions. Discord role policies belong to individual servers and are not implemented by the lightweight stats bot.
 7. Respects `Player.DoNotTrack` before tracking gameplay or fetching reward profiles, with a main-thread refresh every second. DNT always overrides saved approvals and commands. `.statsprivacy off` provides an additional local opt-out. Preferences are encrypted and keyed by an HMAC identifier. Either block clears in-memory stats/reward profiles and schedules pending local contribution removal.
@@ -25,14 +25,16 @@ The project finds the dedicated server in the default Windows Steam library. For
 ## Connect a server
 
 1. Install `GlobalSCPStats.dll` and let EXILED generate the config. On upgrade, remove the old `GlobalSCPStats.Core.dll` from `EXILED/Plugins/dependencies`. See [example-config.yml](examples/example-config.yml).
-2. Ask the Global SCP Stats operator for a one-time code. Set `GSS_SETUP_CODE` in the server's protected environment. Leave `server_id` and the endpoints blank to use managed enrollment.
+2. Ask the Global SCP Stats operator for a one-time code and set `GSS_SETUP_CODE` in the server's protected environment. The generated YAML is ready for automatic enrollment.
 3. Set `GSS_STORAGE_KEY` to a base64-encoded **64-byte cryptographically random key** in the server environment. Preserve this key separately from the connector's data directory. It protects the saved connector credentials, queued stats, and privacy preferences.
 4. Configure `privacy.notice_url` and `notice_version` for your player notice. Set `collection_enabled: true` when ready to collect, then restart the server.
-5. Run `gstats` in Remote Admin to see the assigned server ID and upload status. Once enrolled, remove `GSS_SETUP_CODE` from the environment. Future restarts use the encrypted `enrollment.state` in the connector data directory.
+5. Run `gstats` in Remote Admin to see the assigned server ID and upload status. Once enrolled, remove `GSS_SETUP_CODE` from the environment. The connector uses the ID and upload token from the encrypted `enrollment.state` file on future starts.
 
-Existing and self-hosted servers can still use manual setup. Keep their existing `server_id`, HTTPS endpoints and `GSS_API_TOKEN`. The optional profile endpoint must use the same host and port as uploads. For local-only testing, set a manual server ID and leave the endpoints blank.
+Existing and self-hosted servers can still use manual setup. Set `server_id` and `upload_endpoint` in the YAML and supply `GSS_API_TOKEN` through the environment. The optional HTTPS `profile_endpoint` must use the same host and port as uploads. For local-only testing, set a manual server ID and leave the endpoints blank.
 
-Use the hosting panel's protected environment settings or a service secret store. The YAML contains the **names** of environment variables, not their secret values. Each server needs a separate token and storage key. Never ship a master token inside the connector.
+EXILED omits blank connection fields and default storage settings when it writes the YAML. It preserves configured overrides. To tune local storage, add `checkpoint_interval_seconds` (default 30), `max_queued_batches` (default 10000), `max_queue_age_hours` (default 72), or `data_directory` (default `EXILED/configs/GlobalSCPStats/<port>`) under `global_scp_stats`.
+
+Keep secret values in the hosting panel's protected environment settings or a service secret store. The optional YAML fields `api_token_environment_variable` and `storage_key_environment_variable` only change which environment variable names the plugin reads.
 
 `privacy.require_player_opt_in` now defaults to `false`. DNT is always respected, and `.statsprivacy allow` cannot override it. A local `.statsprivacy off` remains effective even after toggling DNT; `.statsprivacy allow` clears that extra local opt-out while DNT is off. Optional stricter servers can set `require_player_opt_in: true` to also require saved approval and a configured notice URL. Restart after privacy-policy changes. DNT being off is a collection preference, not by itself a determination of lawful basis or valid consent.
 
