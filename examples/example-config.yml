@@ -49,3 +49,4 @@ global_scp_stats:
       name: Level 10
       color: cyan
       priority: 10
+    # Other examples: escapes at 100, or action:healed at 250.

@@ -3,9 +3,15 @@
     <TargetFramework>net48</TargetFramework>
     <PlatformTarget>x64</PlatformTarget>
     <GameManagedPath Condition="'$(GameManagedPath)' == ''">$(SL_REFERENCES)</GameManagedPath>
+    <GameManagedPath Condition="'$(GameManagedPath)' == '' and '$(OS)' == 'Windows_NT'">$(MSBuildProgramFiles32)/Steam/steamapps/common/SCP Secret Laboratory Dedicated Server/SCPSL_Data/Managed</GameManagedPath>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../GlobalSCPStats.Core/GlobalSCPStats.Core.csproj" />
+    <!-- Compile the shared core into the plugin so EXILED loads one DLL. -->
+    <Compile Include="../GlobalSCPStats.Core/**/*.cs"
+             Exclude="../GlobalSCPStats.Core/bin/**;../GlobalSCPStats.Core/obj/**"
+             LinkBase="Core" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Runtime.Serialization" />
     <PackageReference Include="ExMod.Exiled" Version="9.15.2" PrivateAssets="all" ExcludeAssets="runtime" />
     <Reference Include="UnityEngine.CoreModule" Condition="Exists('$(GameManagedPath)/UnityEngine.CoreModule.dll')">
       <HintPath>$(GameManagedPath)/UnityEngine.CoreModule.dll</HintPath>
@@ -26,6 +32,6 @@
   </ItemGroup>
   <Target Name="ValidateGameReferences" BeforeTargets="ResolveReferences">
     <Error Condition="!Exists('$(GameManagedPath)/UnityEngine.CoreModule.dll') Or !Exists('$(GameManagedPath)/UnityEngine.PhysicsModule.dll') Or !Exists('$(GameManagedPath)/Mirror.dll') Or !Exists('$(GameManagedPath)/Assembly-CSharp-firstpass.dll')"
-           Text="Set SL_REFERENCES or -p:GameManagedPath to the matching SCP:SL dedicated server's SCPSL_Data/Managed directory." />
+           Text="SCP:SL dedicated server assemblies were not found in '$(GameManagedPath)'. Set SL_REFERENCES to the server's SCPSL_Data/Managed directory and restart Visual Studio, or pass -p:GameManagedPath when building from the command line." />
   </Target>
 </Project>

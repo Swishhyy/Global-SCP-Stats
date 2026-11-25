@@ -1,6 +1,6 @@
 # Global SCP Stats
 
-An open-source SCP: Secret Laboratory connector for server and global statistics, action XP, and milestone rewards. Version **0.2.2** targets **EXILED 9.15.2** and **.NET Framework 4.8 / x64**.
+An open-source SCP: Secret Laboratory connector for server and global statistics, action XP, and milestone rewards. Version **0.2.3** targets **EXILED 9.15.2** and **.NET Framework 4.8 / x64**.
 
 This is a development build. Server collection defaults to **off**. Once enabled, player collection follows the game's **Do Not Track** flag by default: DNT on blocks tracking, while DNT off permits it unless the player has additionally opted out locally. A separate allow command is not needed for normal participation. The website/API and lightweight Discord Worker are maintained in the separate Site and Discord-Bot repositories. Discord application activation is still required for the linked-account privacy commands.
 
@@ -16,31 +16,15 @@ This is a development build. Server collection defaults to **off**. Once enabled
 
 ## Build
 
-Install a .NET 10 or newer SDK. Windows builds also need the .NET Framework 4.8 targeting pack. Obtain the matching SCP:SL dedicated server assemblies through Steam; game DLLs are not committed to this repository.
+1. Install Visual Studio with the .NET Framework 4.8 targeting pack and a .NET 10 or newer SDK. Install the matching SCP:SL Dedicated Server through Steam.
+2. Open `GlobalSCPStats.sln`, select **Release**, and choose **Build > Build Solution**.
+3. Copy `src/GlobalSCPStats/bin/Release/net48/GlobalSCPStats.dll` into `EXILED/Plugins`. This DLL includes Core, which also builds separately for tests.
 
-Set `SL_REFERENCES` to the dedicated server's `SCPSL_Data/Managed` directory, then build:
-
-```powershell
-$env:SL_REFERENCES = 'C:\path\to\server\SCPSL_Data\Managed'
-dotnet build GlobalSCPStats.sln -c Release
-```
-
-You can also pass `-p:GameManagedPath="C:\path\to\server\SCPSL_Data\Managed"` to the build. The pinned EXILED package supplies framework and publicized game references; the managed directory supplies Unity, Mirror, and MEC references.
-
-To build, run the regression suites, and create an installation ZIP under `artifacts`, use `./scripts/Build.ps1 -GameManagedPath 'C:\path\to\server\SCPSL_Data\Managed'`.
-
-Outputs:
-
-| File | Install location |
-| --- | --- |
-| `src/GlobalSCPStats/bin/Release/net48/GlobalSCPStats.dll` | `EXILED/Plugins` |
-| `src/GlobalSCPStats.Core/bin/Release/net48/GlobalSCPStats.Core.dll` | `EXILED/Plugins/dependencies` |
-
-Use the paths and capitalization belonging to your EXILED installation. Do not install the test executable or the `net10.0` build into the game server.
+The project finds the dedicated server in the default Windows Steam library. For another library, set the Windows user environment variable `SL_REFERENCES` to that server's `SCPSL_Data/Managed` folder and restart Visual Studio. For a terminal build, run `dotnet build GlobalSCPStats.sln -c Release`.
 
 ## Configure for controlled testing
 
-1. Install the two DLLs and let EXILED generate the config. See [example-config.yml](examples/example-config.yml).
+1. Install `GlobalSCPStats.dll` and let EXILED generate the config. On upgrade, remove the old `GlobalSCPStats.Core.dll` from `EXILED/Plugins/dependencies`. See [example-config.yml](examples/example-config.yml).
 2. Set `server_id` to the public identifier assigned by your backend. Keep it stable while queued batches exist. An empty upload URL supports local testing with a chosen test server ID.
 3. Set `GSS_STORAGE_KEY` in the server process environment to a base64-encoded **64-byte cryptographically random key**. Keep a protected backup separate from the outbox; it protects both queued batches and saved preferences. Changing or losing it makes existing data unreadable. The key is required even for local collection.
 4. For uploads, set `upload_endpoint` and the server's `GSS_API_TOKEN` environment variable. Optionally set `profile_endpoint` for global progress and badges. Both endpoints must use HTTPS on the same host and port.
@@ -71,7 +55,7 @@ experience:
 
 Set `experience.enabled: false` for statistics without XP. Every supported action still increments its counter when its XP reward is zero or its XP cooldown/cap applies. Gameplay actions and rewards are counted during active rounds; connected playtime includes waiting and spectator time.
 
-In-game badges use this server's reward_badges metrics and thresholds against its lifetime server stats. The backend supplies counters, never reward decisions. A player cannot grant themselves a badge through a command. See [reward examples](examples/rewards.json) and the [API contract](docs/API.md).
+In-game badges use this server's `reward_badges` metrics and thresholds against its lifetime server stats. The backend supplies counters, never reward decisions. A player cannot grant themselves a badge through a command. See [example-config.yml](examples/example-config.yml) and the [API contract](docs/API.md).
 
 ## Commands
 

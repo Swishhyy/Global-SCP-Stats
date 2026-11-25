@@ -16,7 +16,7 @@ public sealed class Plugin : Plugin<Config>
     public override string Name => "Global SCP Stats";
     public override string Prefix => "global_scp_stats";
     public override string Author => "Swishhyy";
-    public override Version Version => new Version(0, 2, 2);
+    public override Version Version => typeof(Plugin).Assembly.GetName().Version!;
     public override Version RequiredExiledVersion => new Version(9, 15, 2);
     public static Plugin? Instance { get; private set; }
     public StatsRuntime? Runtime { get; private set; }
