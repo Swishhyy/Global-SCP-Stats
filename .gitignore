@@ -10,6 +10,12 @@
 *.userosscache
 *.sln.docstates
 *.env
+.build-cache/
+artifacts/
+*.gss
+*.gss.tmp
+privacy.state
+privacy.*.state.tmp
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs

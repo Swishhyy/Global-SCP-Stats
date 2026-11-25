@@ -1,0 +1,51 @@
+global_scp_stats:
+  is_enabled: true
+  debug: false
+  collection_enabled: false
+  privacy:
+    require_player_opt_in: false
+    notice_url: ''
+    notice_version: '1'
+    show_join_reminder: true
+  server_id: ''
+  upload_endpoint: 'https://api.globalscpstats.com/v1/stats/batches'
+  profile_endpoint: 'https://api.globalscpstats.com/v1/profiles/lookup'
+  api_token_environment_variable: GSS_API_TOKEN
+  storage_key_environment_variable: GSS_STORAGE_KEY
+  checkpoint_interval_seconds: 30
+  max_queued_batches: 10000
+  max_queue_age_hours: 72
+  data_directory: ''
+  experience:
+    enabled: true
+    default_reward: 1
+    default_cooldown_seconds: 2
+    max_xp_per_minute: 1000
+    rewards:
+      kill: 50
+      death: 1
+      escape: 100
+      round_played: 20
+      damage_dealt: 2
+      damage_received: 1
+      healed: 5
+      scp049.recall_finishing: 50
+      scp079.level_gaining: 25
+    cooldowns:
+      kill: 0
+      death: 0
+      escape: 0
+      round_played: 0
+      player.door_interacting: 10
+      player.item_added: 10
+      player.shot: 5
+      player.jumping: 10
+  badge_rewards_enabled: true
+  preserve_existing_badges: true
+  reward_badges:
+    - reward_id: level_10
+      metric: level
+      threshold: 10
+      name: Level 10
+      color: cyan
+      priority: 10

@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+    <GameManagedPath Condition="'$(GameManagedPath)' == ''">$(SL_REFERENCES)</GameManagedPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../GlobalSCPStats.Core/GlobalSCPStats.Core.csproj" />
+    <PackageReference Include="ExMod.Exiled" Version="9.15.2" PrivateAssets="all" ExcludeAssets="runtime" />
+    <Reference Include="UnityEngine.CoreModule" Condition="Exists('$(GameManagedPath)/UnityEngine.CoreModule.dll')">
+      <HintPath>$(GameManagedPath)/UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.PhysicsModule" Condition="Exists('$(GameManagedPath)/UnityEngine.PhysicsModule.dll')">
+      <HintPath>$(GameManagedPath)/UnityEngine.PhysicsModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Mirror" Condition="Exists('$(GameManagedPath)/Mirror.dll')">
+      <HintPath>$(GameManagedPath)/Mirror.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Assembly-CSharp-firstpass" Condition="Exists('$(GameManagedPath)/Assembly-CSharp-firstpass.dll')">
+      <HintPath>$(GameManagedPath)/Assembly-CSharp-firstpass.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+  <Target Name="ValidateGameReferences" BeforeTargets="ResolveReferences">
+    <Error Condition="!Exists('$(GameManagedPath)/UnityEngine.CoreModule.dll') Or !Exists('$(GameManagedPath)/UnityEngine.PhysicsModule.dll') Or !Exists('$(GameManagedPath)/Mirror.dll') Or !Exists('$(GameManagedPath)/Assembly-CSharp-firstpass.dll')"
+           Text="Set SL_REFERENCES or -p:GameManagedPath to the matching SCP:SL dedicated server's SCPSL_Data/Managed directory." />
+  </Target>
+</Project>
