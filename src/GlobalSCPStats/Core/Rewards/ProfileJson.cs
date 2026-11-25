@@ -1,25 +1,19 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Runtime.Serialization;
-using System.Runtime.Serialization.Json;
+using GlobalSCPStats.Core.Storage;
 
 namespace GlobalSCPStats.Core.Rewards;
 
 public static class ProfileJson
 {
     public static byte[] LookupRequest(string userId)
-    {
-        using var stream = new MemoryStream();
-        new DataContractJsonSerializer(typeof(ProfileLookup)).WriteObject(stream, new ProfileLookup { UserId = userId });
-        return stream.ToArray();
-    }
+        => new JsonWriter().BeginObject().Property("user_id", userId).EndObject().ToBytes();
 
     public static ProgressProfile Deserialize(byte[] bytes, string expectedUserId)
     {
-        using var stream = new MemoryStream(bytes);
-        var profile = (ProgressProfile?)new DataContractJsonSerializer(typeof(ProgressProfile), new DataContractJsonSerializerSettings { UseSimpleDictionaryFormat = true }).ReadObject(stream);
-        if (profile == null || profile.UserId != expectedUserId || profile.TotalXp < 0 || profile.Level < 1 ||
+        ProgressProfile profile = Read(Json.ParseObject(bytes));
+        if (profile.UserId != expectedUserId || profile.TotalXp < 0 || profile.Level < 1 ||
             profile.Revision < 0)
             throw new SerializationException("Invalid progress profile.");
         profile.RewardIds ??= [];
@@ -43,10 +37,24 @@ public static class ProfileJson
         return profile;
     }
 
-    [DataContract]
-    private sealed class ProfileLookup
+    private static ProgressProfile Read(Dictionary<string, object?> root)
     {
-        [DataMember(Name = "user_id")]
-        public string UserId { get; set; } = string.Empty;
+        var profile = new ProgressProfile
+        {
+            UserId = Json.String(root, "user_id") ?? string.Empty,
+            TotalXp = Json.Long(root, "total_xp"),
+            Level = Json.Int(root, "level"),
+            Revision = Json.Long(root, "revision"),
+            RewardIds = [],
+        };
+        foreach (object? reward in Json.Array(root, "reward_ids") ?? [])
+            profile.RewardIds.Add(reward as string ?? throw new SerializationException("Invalid reward ID."));
+        Dictionary<string, object?>? stats = Json.Object(root, "server_stats");
+        if (stats != null)
+        {
+            if (Json.Object(stats, "actions") == null) throw new SerializationException("Invalid server stats.");
+            profile.ServerStats = BatchJson.ReadPlayer(stats);
+        }
+        return profile;
     }
 }

@@ -28,16 +28,32 @@ public sealed class StatsTracker(ExperienceOptions? options = null)
             userId.Take(separator).All(c => c >= '0' && c <= '9');
     }
 
-    public void Join(string? userId, double now, string collectionId = "test")
+    public void Join(string? userId, double now, string collectionId = "test", string? name = null)
     {
-        if (!IsSupportedUser(userId) || sessions.ContainsKey(userId!)) return;
-        sessions.Add(userId!, new Session(userId!, now, collectionId));
+        if (!IsSupportedUser(userId)) return;
+        if (sessions.TryGetValue(userId!, out Session? existing))
+        {
+            existing.Name = CleanName(name) ?? existing.Name;
+            return;
+        }
+        sessions.Add(userId!, new Session(userId!, now, collectionId) { Name = CleanName(name) });
+        Count(userId, "session.started", requireRound: false);
+    }
+
+    /// <summary>Trims a nickname to what the site accepts: up to 32 characters with no control characters.</summary>
+    public static string? CleanName(string? name)
+    {
+        if (name == null) return null;
+        string clean = new string(name.Where(c => !char.IsControl(c)).ToArray()).Trim();
+        if (clean.Length > 32) clean = clean.Substring(0, char.IsHighSurrogate(clean[31]) ? 31 : 32).TrimEnd();
+        return clean.Length == 0 ? null : clean;
     }
 
     public void Leave(string? userId, double now)
     {
         if (userId == null || !sessions.TryGetValue(userId, out Session? session)) return;
         Advance(session, now);
+        Change(userId, new PlayerStats { LongestSessionSeconds = Math.Max(0, now - session.Started) });
         sessions.Remove(userId);
     }
 
@@ -93,6 +109,44 @@ public sealed class StatsTracker(ExperienceOptions? options = null)
             Action(userId, "escape", now);
         }
     }
+
+    /// <summary>
+    /// Adds one to a stat-only counter such as "kill.with.crossvec". Unlike <see cref="Action"/>, it never awards XP,
+    /// so new stats don't change the XP economy.
+    /// </summary>
+    public void Count(string? userId, string key, bool requireRound = true)
+    {
+        if ((requireRound && !roundActive) || userId == null || !sessions.ContainsKey(userId)) return;
+        if (!ValidKey(key)) throw new ArgumentException("Invalid stat key.", nameof(key));
+        Change(userId, new PlayerStats { Actions = new Dictionary<string, long> { [key] = 1 } });
+    }
+
+    /// <summary>
+    /// Adds a measured amount (meters moved, seconds as a role) to a stat-only counter. Fractions carry over
+    /// between calls so slow, steady movement still adds up to whole meters.
+    /// </summary>
+    public void Measure(string? userId, string key, double amount)
+    {
+        if (!roundActive || userId == null || amount <= 0 || !sessions.TryGetValue(userId, out Session? session)) return;
+        if (!ValidKey(key)) throw new ArgumentException("Invalid stat key.", nameof(key));
+        session.Fractions.TryGetValue(key, out double carried);
+        double total = carried + amount;
+        long whole = (long)Math.Floor(total);
+        session.Fractions[key] = total - whole;
+        if (whole > 0) Change(userId, new PlayerStats { Actions = new Dictionary<string, long> { [key] = whole } });
+    }
+
+    /// <summary>Turns an enum name such as "Scp173" or "E11Sr" into a stat key part such as "scp173" or "e11sr".</summary>
+    public static string KeyPart(object? value)
+    {
+        string text = new string((value?.ToString() ?? "unknown").ToLowerInvariant().Where(c => (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_').ToArray());
+        if (text.Length == 0) return "unknown";
+        return text.Length > 40 ? text.Substring(0, 40) : text;
+    }
+
+    private static bool ValidKey(string key) =>
+        key.Length is > 0 and <= 96 && key[0] >= 'a' && key[0] <= 'z' &&
+        key.All(c => (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_' || c == '.');
 
     public void Action(string? userId, string action, double now)
     {
@@ -154,6 +208,7 @@ public sealed class StatsTracker(ExperienceOptions? options = null)
             {
                 UserId = userId, CollectionId = session.CollectionId, ContributionId = Guid.NewGuid().ToString("D"),
             });
+        value.Name = session.Name;
         value.Add(change);
         session.Totals.Add(change);
     }
@@ -164,13 +219,17 @@ public sealed class StatsTracker(ExperienceOptions? options = null)
         {
             UserId = userId;
             LastUpdated = now;
+            Started = now;
             CollectionId = collectionId;
             Totals = new PlayerStats { UserId = userId };
         }
 
         public string UserId { get; }
         public string CollectionId { get; }
+        public double Started { get; }
+        public string? Name { get; set; }
         public double LastUpdated { get; set; }
         public PlayerStats Totals { get; }
+        public Dictionary<string, double> Fractions { get; } = [];
     }
 }

@@ -1,3 +1,4 @@
+using System;
 using System.Runtime.Serialization;
 using System.Collections.Generic;
 
@@ -45,7 +46,18 @@ public sealed class PlayerStats
     [DataMember(Name = "collection_id", Order = 13)]
     public string CollectionId { get; set; } = string.Empty;
 
-    public bool HasChanges => PlaytimeSeconds > 0 || RoundsPlayed > 0 || Kills > 0 || Deaths > 0 || Escapes > 0 || Actions.Count > 0;
+    /// <summary>The player's in-game name when the contribution was recorded, shown on the public leaderboards.</summary>
+    [DataMember(Name = "name", Order = 14, EmitDefaultValue = false)]
+    public string? Name { get; set; }
+
+    /// <summary>Longest single connection finished in this contribution. Merged with Math.Max, not summed.</summary>
+    [DataMember(Name = "longest_session_seconds", Order = 15, EmitDefaultValue = false)]
+    public double LongestSessionSeconds { get; set; }
+
+    /// <summary>The site accepts at most this many distinct action keys per contribution.</summary>
+    public const int MaxActionKeys = 256;
+
+    public bool HasChanges => PlaytimeSeconds > 0 || RoundsPlayed > 0 || Kills > 0 || Deaths > 0 || Escapes > 0 || Actions.Count > 0 || LongestSessionSeconds > 0;
 
     public PlayerStats Copy()
     {
@@ -65,9 +77,11 @@ public sealed class PlayerStats
         DamageDealt += value.DamageDealt;
         DamageReceived += value.DamageReceived;
         HealthRestored += value.HealthRestored;
+        LongestSessionSeconds = Math.Max(LongestSessionSeconds, value.LongestSessionSeconds);
         foreach (var action in value.Actions)
         {
-            Actions.TryGetValue(action.Key, out long count);
+            bool known = Actions.TryGetValue(action.Key, out long count);
+            if (!known && Actions.Count >= MaxActionKeys) continue;
             Actions[action.Key] = count + action.Value;
         }
     }

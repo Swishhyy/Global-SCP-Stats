@@ -1,9 +1,10 @@
 using System;
+using GlobalSCPStats.Core.Models;
+using System.Collections.Generic;
 using System.IO;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Runtime.Serialization;
-using System.Runtime.Serialization.Json;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -51,7 +52,7 @@ public sealed class ConnectorEnrollment(string directory, byte[] storageKey)
     {
         cancellationToken.ThrowIfCancellationRequested();
         bool exists = File.Exists(path);
-        State? state = exists ? Decode<State>(store.Read(path)) : null;
+        State? state = exists ? DecodeState(store.Read(path)) : null;
         if (state != null && !Regex.IsMatch(state.Token, @"\Agss_[a-zA-Z0-9_-]{43}\z"))
             throw new SerializationException("The saved connector token is invalid.");
         if (state?.ServerId != null)
@@ -68,8 +69,8 @@ public sealed class ConnectorEnrollment(string directory, byte[] storageKey)
             using (var random = RandomNumberGenerator.Create()) random.GetBytes(tokenBytes);
             state = new State { Token = "gss_" + Base64Url(tokenBytes), SetupCodeHash = codeHash };
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            if (exists) store.Replace(path, Encode(state));
-            else store.WriteNew(path, Encode(state));
+            if (exists) store.Replace(path, EncodeState(state));
+            else store.WriteNew(path, EncodeState(state));
         }
 
         // Save the pending token before the request so a lost response is safe to retry.
@@ -79,9 +80,10 @@ public sealed class ConnectorEnrollment(string directory, byte[] storageKey)
         if (setupCode == null)
         {
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", state.Token);
-            request.Content = new ByteArrayContent(Encode(new AutomaticClaim { Name = NormalizeName(serverName) }));
+            request.Content = new ByteArrayContent(new JsonWriter().BeginObject().Property("name", ServerInfo.CleanName(serverName)).EndObject().ToBytes());
         }
-        else request.Content = new ByteArrayContent(Encode(new Claim { SetupCode = setupCode, TokenHash = Hash(state.Token) }));
+        else request.Content = new ByteArrayContent(new JsonWriter().BeginObject()
+            .Property("setup_code", setupCode).Property("token_hash", Hash(state.Token)).EndObject().ToBytes());
         request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
         try
         {
@@ -105,10 +107,10 @@ public sealed class ConnectorEnrollment(string directory, byte[] storageKey)
                 if (body.Length + read > 2048) throw new SerializationException("Enrollment response exceeds the size limit.");
                 body.Write(buffer, 0, read);
             }
-            state.ServerId = Decode<Receipt>(body.ToArray()).ServerId;
+            state.ServerId = Json.String(Json.ParseObject(body.ToArray()), "server_id", required: true);
             UploadOptions options = Options(state);
             state.SetupCodeHash = null;
-            store.Replace(path, Encode(state));
+            store.Replace(path, EncodeState(state));
             return options;
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
@@ -119,14 +121,6 @@ public sealed class ConnectorEnrollment(string directory, byte[] storageKey)
         {
             throw new EnrollmentException("The enrollment API could not be reached.", retryable: true);
         }
-    }
-
-    private static string NormalizeName(string? value)
-    {
-        string name = Regex.Replace(value ?? string.Empty, @"<[^<>]*>|[\p{Cc}\p{Cf}]", string.Empty).Trim();
-        if (name.Length > 80)
-            name = name.Substring(0, char.IsHighSurrogate(name[79]) ? 79 : 80).TrimEnd();
-        return name.Length == 0 ? "SCP:SL server" : name;
     }
 
     private static UploadOptions Options(State state)
@@ -144,51 +138,29 @@ public sealed class ConnectorEnrollment(string directory, byte[] storageKey)
 
     private static string Base64Url(byte[] bytes) => Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
 
-    private static byte[] Encode<T>(T value)
+    private static byte[] EncodeState(State state)
     {
-        using var stream = new MemoryStream();
-        new DataContractJsonSerializer(typeof(T)).WriteObject(stream, value);
-        return stream.ToArray();
+        var writer = new JsonWriter().BeginObject();
+        if (state.ServerId != null) writer.Property("server_id", state.ServerId);
+        if (state.SetupCodeHash != null) writer.Property("setup_code_hash", state.SetupCodeHash);
+        return writer.Property("token", state.Token).EndObject().ToBytes();
     }
 
-    private static T Decode<T>(byte[] bytes) where T : class
+    private static State DecodeState(byte[] bytes)
     {
-        using var stream = new MemoryStream(bytes);
-        return new DataContractJsonSerializer(typeof(T)).ReadObject(stream) as T
-            ?? throw new SerializationException("Enrollment data is invalid.");
+        Dictionary<string, object?> obj = Json.ParseObject(bytes);
+        return new State
+        {
+            Token = Json.String(obj, "token", required: true)!,
+            SetupCodeHash = Json.String(obj, "setup_code_hash"),
+            ServerId = Json.String(obj, "server_id"),
+        };
     }
 
-    [DataContract]
-    private sealed class AutomaticClaim
-    {
-        [DataMember(Name = "name")]
-        public string Name { get; set; } = string.Empty;
-    }
-
-    [DataContract]
     private sealed class State
     {
-        [DataMember(Name = "token", IsRequired = true)]
         public string Token { get; set; } = string.Empty;
-        [DataMember(Name = "setup_code_hash", EmitDefaultValue = false)]
         public string? SetupCodeHash { get; set; }
-        [DataMember(Name = "server_id", EmitDefaultValue = false)]
-        public string? ServerId { get; set; }
-    }
-
-    [DataContract]
-    private sealed class Claim
-    {
-        [DataMember(Name = "setup_code")]
-        public string SetupCode { get; set; } = string.Empty;
-        [DataMember(Name = "token_hash")]
-        public string TokenHash { get; set; } = string.Empty;
-    }
-
-    [DataContract]
-    private sealed class Receipt
-    {
-        [DataMember(Name = "server_id", IsRequired = true)]
         public string? ServerId { get; set; }
     }
 }

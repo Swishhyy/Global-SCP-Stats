@@ -8,13 +8,17 @@ This document describes what the connector handles and the work required for pub
 | --- | --- |
 | Steam/Discord platform user ID | Links a player's contributions across sessions and servers; encrypted in the local outbox and transmitted only over HTTPS |
 | Public server ID, batch ID, batch creation timestamp | Attributes contributions and prevents duplicate processing |
-| Connected playtime, rounds, kills, deaths, escapes | Aggregate statistics; no per-kill victim/attacker relationship is stored |
+| In-game nickname (normally the Steam name) | Shown as the player's name on the public leaderboards and profile; trimmed to 32 characters without control characters. The latest reported name replaces the previous one |
+| Connected playtime, rounds, kills, deaths, escapes, longest session | Aggregate statistics; no per-kill victim/attacker relationship is stored |
 | Action-name counters, damage/healing amounts, XP delta | Progression; raw event objects are never serialized |
+| Stat-only counters: roles played, kills and deaths by role, weapon or cause (game enum names), escapes by scenario, rounds won/survived, sessions, items used/picked up/thrown by type | Public profile statistics; counts only, no XP and no per-event records |
+| Distance moved (meters, by sprinting/walking/crouching and by SCP), seconds as each role and in each zone | Public profile statistics. Positions are sampled in memory about once a second to compute distance and are never stored or transmitted; only the running totals are uploaded |
+| Server name, plugin version, framework and framework version | Shown on the public server page; the server name has hidden rich-text tags removed |
 | Returned global XP, level, server lifetime stats, profile revision | Temporary in-memory data for progression and server-owned rewards |
 | Keyed preference marker, local approval/withdrawal, observed game DNT, notice version, change timestamp | Encrypted `privacy.state` file; markers use domain-separated HMAC-SHA-256 instead of raw platform IDs |
 | Local collection ID and contribution ID | Retires pending data after withdrawal and prevents privacy rewrites from duplicating other players' accepted stats |
 
-The connector does not collect player names, player IP addresses, chat, audio recordings, positions, or arbitrary damage-handler strings. It counts some voice-related SCP ability activations without recording audio. A hosted API necessarily receives the connecting server's network address; hosting access logs, application logs, analytics, and backups need their own controls.
+The connector does not collect player IP addresses, chat, audio recordings, raw positions, or free-form damage-handler text (only the game's damage-type enum name). Player nicknames are sent so the site can show them; a player who doesn't want their name shown can turn on Do Not Track, which stops collection entirely. It counts some voice-related SCP ability activations without recording audio. A hosted API necessarily receives the connecting server's network address; hosting access logs, application logs, analytics, and backups need their own controls.
 
 Identifiers and encrypted data must still be treated as personal data. Encryption and pseudonymisation do not automatically make the information anonymous or establish a lawful basis.
 

@@ -132,4 +132,32 @@ Damage and healing amounts are accumulated separately from occurrence counters. 
 | warhead.lever_changing | Warhead.ChangingLeverStatus |
 | warhead.stopping | Warhead.Stopping |
 
+## Stat-only counters
+
+These keys are counted with `StatsTracker.Count` or `StatsTracker.Measure` and **never award XP**, so adding them does not change levels. `<role>`, `<cause>`, `<item>`, `<zone>` and `<scenario>` are the lowercase EXILED/game enum names (for example `scp173`, `crossvec`, `medkit`, `lightcontainment`).
+
+| Action key | Meaning | Unit |
+| --- | --- | --- |
+| session.started | A tracked connection started | count |
+| role.spawned.\<role> | Spawned as a role | count |
+| kill.as.\<role> | Kills while playing a role | count |
+| kill.with.\<cause> | Kills by damage type (weapon or SCP) | count |
+| kill.target.\<role> | Kills by the victim's role | count |
+| death.as.\<role> | Deaths while playing a role | count |
+| death.by.\<cause> | Deaths by damage type | count |
+| escape.as.\<scenario> | Escapes by scenario (for example cuffedscientist) | count |
+| round.won | Alive at round end on the winning side | count |
+| round.survived | Alive at round end | count |
+| item.used.\<item> | Items used, by type | count |
+| item.received.\<item> | Items received, by type (includes spawn loadouts) | count |
+| item.thrown.\<item> | Throwables thrown, by type | count |
+| move.sprinted_m, move.walked_m, move.crouched_m | Distance moved by movement state | meters |
+| move.as.\<role>_m | Distance moved while playing an SCP | meters |
+| time.as.\<role> | Time alive as a role | seconds |
+| time.in.\<zone> | Time alive in a zone | seconds |
+
+Distance and time come from a once-a-second sampling coroutine that handles at most 8 players per frame and applies each group's samples under one lock. Jumps over 20 m/s (elevators, teleports, the pocket dimension) are ignored. Uploads are unchanged: everything goes into the next checkpoint batch.
+
+The player's longest finished session is sent separately as `longest_session_seconds` (a maximum, not a sum).
+
 To add a hook, add a typed Bind call in ActionEvents.Register, choose a stable action key, and document whether it describes a completion or an attempt. Only the name/count is recorded. Privacy and administrative events should not be added indiscriminately.

@@ -1,6 +1,6 @@
 # Global SCP Stats
 
-An EXILED plugin for server and global SCP: Secret Laboratory stats, action XP, and milestone badges. Version **0.2.7** targets **EXILED 9.15.2** on **.NET Framework 4.8 / x64**.
+An EXILED plugin for server and global SCP: Secret Laboratory stats, action XP, and milestone badges. Version **0.2.8** targets **EXILED 9.15.2** on **.NET Framework 4.8 / x64**.
 
 [Stats website](https://globalscpstats.com) · [Support and privacy requests](https://discord.gg/BtCq4kfdcV) · [Discord bot source](https://github.com/Swishhyy/Global-SCP-Stats-Discord-Bot)
 
@@ -14,7 +14,7 @@ EXILED generates the YAML settings on first startup. Set `is_enabled: false` to 
 
 ## Stats and rewards
 
-The plugin tracks playtime, rounds, kills, deaths, escapes, damage, healing, and [supported gameplay actions](docs/ACTIONS.md). XP is configurable per action, with cooldowns and a rolling cap. Set `experience.enabled: false` to keep tracking stats without awarding XP.
+The plugin tracks playtime, rounds, kills, deaths, escapes, damage, healing, sessions, distance moved, time per role and zone, kills and deaths by role and weapon, items, and [supported gameplay actions](docs/ACTIONS.md). Players show on the site under their in-game name. XP is configurable per action, with cooldowns and a rolling cap. Set `experience.enabled: false` to keep tracking stats without awarding XP.
 
 Configure `reward_badges` to award in-game badges from this server's lifetime stats. Each server chooses its own metrics, thresholds, and labels. Existing staff and supporter badges are preserved by default.
 

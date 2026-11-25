@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.Serialization;
-using System.Runtime.Serialization.Json;
 using System.Security.Cryptography;
 using System.Text;
 using GlobalSCPStats.Core.Models;
@@ -170,16 +169,44 @@ public sealed class PrivacyPreferences
 
     private void Save(PreferenceState value)
     {
-        using var stream = new MemoryStream();
-        Serializer().WriteObject(stream, value);
-        store.Replace(path, stream.ToArray());
+        var writer = new JsonWriter().BeginObject()
+            .Property("Version", value.Version)
+            .Name("Preferences").BeginObject();
+        foreach (var entry in value.Preferences)
+        {
+            Preference p = entry.Value;
+            writer.Name(entry.Key).BeginObject()
+                .Property("Allowed", p.Allowed)
+                .Property("ChangedAt", p.ChangedAt)
+                .Property("CollectionId", p.CollectionId)
+                .Property("GameDoNotTrack", p.GameDoNotTrack)
+                .Property("HasLocalPreference", p.HasLocalPreference)
+                .Property("NoticeVersion", p.NoticeVersion)
+                .EndObject();
+        }
+        store.Replace(path, writer.EndObject().EndObject().ToBytes());
     }
 
     private static PreferenceState Deserialize(byte[] bytes)
     {
-        using var stream = new MemoryStream(bytes);
-        var value = (PreferenceState?)Serializer().ReadObject(stream);
-        if (value?.Preferences == null || (value.Version != 1 && value.Version != 2)) throw new SerializationException("Invalid privacy preferences.");
+        Dictionary<string, object?> root = Json.ParseObject(bytes);
+        Dictionary<string, object?>? saved = Json.Object(root, "Preferences");
+        if (saved == null) throw new SerializationException("Invalid privacy preferences.");
+        var value = new PreferenceState { Version = Json.Int(root, "Version"), Preferences = [] };
+        foreach (var entry in saved)
+        {
+            if (entry.Value is not Dictionary<string, object?> item) throw new SerializationException("Invalid saved collection preference.");
+            value.Preferences[entry.Key] = new Preference
+            {
+                Allowed = Json.Bool(item, "Allowed"),
+                HasLocalPreference = Json.Bool(item, "HasLocalPreference"),
+                GameDoNotTrack = Json.Bool(item, "GameDoNotTrack"),
+                CollectionId = Json.String(item, "CollectionId") ?? string.Empty,
+                NoticeVersion = Json.String(item, "NoticeVersion") ?? string.Empty,
+                ChangedAt = Json.String(item, "ChangedAt") ?? string.Empty,
+            };
+        }
+        if ( (value.Version != 1 && value.Version != 2)) throw new SerializationException("Invalid privacy preferences.");
         foreach (Preference? preference in value.Preferences.Values)
         {
             if (preference == null) throw new SerializationException("Invalid saved collection preference.");
@@ -191,29 +218,24 @@ public sealed class PrivacyPreferences
         return value;
     }
 
-    private static DataContractJsonSerializer Serializer() => new(typeof(PreferenceState),
-        new DataContractJsonSerializerSettings { UseSimpleDictionaryFormat = true });
-
     private static void ValidateUser(string id)
     {
         if (!StatsTracker.IsSupportedUser(id)) throw new ArgumentException("A supported player account is required.", nameof(id));
     }
 
-    [DataContract]
     private sealed class PreferenceState
     {
-        [DataMember] public int Version { get; set; } = 2;
-        [DataMember] public Dictionary<string, Preference> Preferences { get; set; } = [];
+        public int Version { get; set; } = 2;
+        public Dictionary<string, Preference> Preferences { get; set; } = [];
     }
 
-    [DataContract]
     private sealed class Preference
     {
-        [DataMember] public bool Allowed { get; set; }
-        [DataMember] public bool HasLocalPreference { get; set; }
-        [DataMember] public bool GameDoNotTrack { get; set; }
-        [DataMember] public string CollectionId { get; set; } = string.Empty;
-        [DataMember] public string NoticeVersion { get; set; } = string.Empty;
-        [DataMember] public string ChangedAt { get; set; } = string.Empty;
+        public bool Allowed { get; set; }
+        public bool HasLocalPreference { get; set; }
+        public bool GameDoNotTrack { get; set; }
+        public string CollectionId { get; set; } = string.Empty;
+        public string NoticeVersion { get; set; } = string.Empty;
+        public string ChangedAt { get; set; } = string.Empty;
     }
 }

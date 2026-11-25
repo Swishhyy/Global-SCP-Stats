@@ -51,6 +51,13 @@ Example delta batch:
 }
 ```
 
+Optional fields (added in 0.2.8; older servers omit them):
+
+- per player: `name` (in-game nickname, up to 32 characters) and `longest_session_seconds` (the longest connection that ended in this delta; the backend keeps the maximum, not a sum)
+- per batch: `server` with `name` (hidden rich-text tags removed), `plugin_version`, `framework` (`exiled` or `labapi`) and `framework_version`
+
+A delta may carry up to 256 distinct action keys. The connector stops adding new keys to a delta at that limit.
+
 Values are **deltas**, not lifetime totals. The generic `actions.kill` counter describes the same kills as the top-level `kills` field: do not add both together. The XP field already includes configured rewards; do not independently award another copy for the same counters.
 
 Each player delta has its own immutable `contribution_id`. `collection_id` identifies the connector's current local collection approval/policy revision; it is not an authentication credential, an account-wide preference, or independent proof of a valid legal basis. A player withdrawing and later approving collection gets a new ID so old queued data cannot be reactivated.

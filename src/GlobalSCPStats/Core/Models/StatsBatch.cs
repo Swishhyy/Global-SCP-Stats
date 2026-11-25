@@ -21,4 +21,7 @@ public sealed class StatsBatch
 
     [DataMember(Name = "players", Order = 5)]
     public List<PlayerStats> Players { get; set; } = [];
+
+    [DataMember(Name = "server", Order = 6, EmitDefaultValue = false)]
+    public ServerInfo? Server { get; set; }
 }

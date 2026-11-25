@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Exiled.API.Features;
 using GlobalSCPStats.Core;
+using GlobalSCPStats.Core.Models;
 using GlobalSCPStats.Core.Storage;
 using GlobalSCPStats.Core.Transport;
 using GlobalSCPStats.Events;
@@ -104,7 +105,9 @@ public sealed class Plugin : Plugin<Config>
         {
             var outbox = new DurableOutbox(directory, Config.MaxQueuedBatches, storageKey, TimeSpan.FromHours(Config.MaxQueueAgeHours));
             var privacy = new PrivacyPreferences(directory, storageKey, Config.Privacy);
-            Runtime = new StatsRuntime(serverId, outbox, privacy, TimeSpan.FromSeconds(Config.CheckpointIntervalSeconds), api, message => Log.Warn(message), Config.Experience);
+            // EXILED build. A LabAPI build would pass PluginFramework.LabApi and the LabAPI loader version here.
+            var server = ServerInfo.Create(Server.Name, Version, PluginFramework.Exiled, typeof(Server).Assembly.GetName().Version);
+            Runtime = new StatsRuntime(serverId, outbox, privacy, TimeSpan.FromSeconds(Config.CheckpointIntervalSeconds), api, message => Log.Warn(message), Config.Experience, server);
             events = new StatsEvents(Runtime);
             events.Register();
             actions = new ActionEvents(Runtime);

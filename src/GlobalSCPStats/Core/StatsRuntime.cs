@@ -32,8 +32,11 @@ public sealed partial class StatsRuntime : IDisposable
     private readonly HashSet<string> requestedProfiles = [];
     private readonly Dictionary<string, CachedProfile> profiles = [];
 
-    public StatsRuntime(string serverId, DurableOutbox outbox, PrivacyPreferences privacy, TimeSpan checkpointInterval, StatsApiClient? api, Action<string> log, ExperienceOptions? experience = null)
+    private readonly ServerInfo? server;
+
+    public StatsRuntime(string serverId, DurableOutbox outbox, PrivacyPreferences privacy, TimeSpan checkpointInterval, StatsApiClient? api, Action<string> log, ExperienceOptions? experience = null, ServerInfo? server = null)
     {
+        this.server = server;
         if (string.IsNullOrWhiteSpace(serverId)) throw new ArgumentException("A server ID is required.", nameof(serverId));
         if (checkpointInterval < TimeSpan.FromSeconds(1)) throw new ArgumentOutOfRangeException(nameof(checkpointInterval));
         this.serverId = serverId;
@@ -55,13 +58,13 @@ public sealed partial class StatsRuntime : IDisposable
         worker = Task.Run(RunAsync);
     }
 
-    public void Join(string? id)
+    public void Join(string? id, string? name = null)
     {
         lock (gate)
         {
             string? collectionId = privacy.GetCollectionId(id);
             if (collectionId == null) return;
-            tracker.Join(id, clock.Elapsed.TotalSeconds, collectionId);
+            tracker.Join(id, clock.Elapsed.TotalSeconds, collectionId, name);
             if (StatsTracker.IsSupportedUser(id) && online.Add(id!)) RequestProfile(id!);
         }
     }
@@ -81,6 +84,19 @@ public sealed partial class StatsRuntime : IDisposable
     public void Death(string? victim, string? attacker) { lock (gate) tracker.Death(victim, attacker, clock.Elapsed.TotalSeconds); }
     public void Escape(string? id) { lock (gate) tracker.Escape(id, clock.Elapsed.TotalSeconds); }
     public void Action(string? id, string action) { lock (gate) tracker.Action(id, action, clock.Elapsed.TotalSeconds); }
+    public void Count(string? id, string key) { lock (gate) tracker.Count(id, key); }
+    public void Measure(string? id, string key, double amount) { lock (gate) tracker.Measure(id, key, amount); }
+
+    /// <summary>A measured amount for one player, collected on the main thread and applied in bulk.</summary>
+    public readonly record struct Measurement(string UserId, string Key, double Amount);
+
+    /// <summary>Applies a group of samples under a single lock.</summary>
+    public void MeasureAll(IReadOnlyList<Measurement> measurements)
+    {
+        if (measurements.Count == 0) return;
+        lock (gate)
+            foreach (Measurement m in measurements) tracker.Measure(m.UserId, m.Key, m.Amount);
+    }
     public void Damage(string? victim, string? attacker, double amount) { lock (gate) tracker.Damage(victim, attacker, amount, clock.Elapsed.TotalSeconds); }
     public void Heal(string? id, double amount) { lock (gate) tracker.Heal(id, amount, clock.Elapsed.TotalSeconds); }
     public PlayerStats? GetSession(string? id) { lock (gate) return tracker.GetSession(id, clock.Elapsed.TotalSeconds); }
@@ -109,7 +125,7 @@ public sealed partial class StatsRuntime : IDisposable
             if (expired > 0) log($"Removed {expired} expired outbox batches under the configured local retention policy.");
             var players = tracker.Snapshot(clock.Elapsed.TotalSeconds);
             if (players.Count == 0) return true;
-            if (!outbox.TryEnqueue(new StatsBatch { ServerId = serverId, Players = players })) return false;
+            if (!outbox.TryEnqueue(new StatsBatch { ServerId = serverId, Players = players, Server = server })) return false;
             tracker.CommitSnapshot();
             return true;
         }
