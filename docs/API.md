@@ -4,16 +4,16 @@ The connector implements the client side of this contract. The ingestion service
 
 ## Server enrollment and authentication
 
-1. An authenticated server owner registers a server with the private service. Enrollment needs its own ownership/abuse controls; no secret bootstrap key belongs in the public plugin.
-2. The service issues a public `server_id` and a cryptographically random per-server token with at least 256 bits of entropy. Show the token only through the owner's protected setup flow. Store a one-way token digest server-side, using constant-time verification. Never reuse a player identifier as a token.
-3. Give each token only `stats:write` for that server and, if enabled, the narrowly scoped profile lookup capability. The service must bind the token to `server_id`; a request field must never override its authenticated server identity.
-4. Allow rotation and revocation per server. Master secrets, database credentials, Discord bot tokens, and encryption keys stay in private infrastructure. A server owner can access their own token and submit forged events; a public connector cannot prove gameplay authenticity on an owner-controlled machine. Rate-limit, validate, and quarantine untrusted contributions before they affect global progression.
+1. A fresh install generates a random 256-bit token, then calls `POST /v1/enrollment/automatic` with its bearer token and a JSON `name`. The hosted service applies registration quotas and returns its public `server_id`. A retry with the same active token returns the same ID.
+2. The service stores a one-way token digest. The connector saves its server ID and token in encrypted local storage. Operator-issued setup codes and manual server configuration are also supported.
+3. The service scopes the token to uploads for that server and profile lookups for players with stats on that server. The authenticated server ID takes precedence over any server ID in a request body.
+4. The operator can rotate or revoke a server token. Administrative and Discord credentials remain on the backend. A server owner can fabricate gameplay for their own server. The service applies request limits and payload validation to reduce abuse.
 
 All requests use `Authorization: Bearer <server-token>` over HTTPS. Redirects are not followed. Response bodies and authorization values are not logged by the connector. Redact request bodies, identifiers, and authorization headers in the hosting stack as well.
 
 ## POST /v1/stats/batches
 
-Configure the complete HTTPS URL as `upload_endpoint`.
+Managed enrollment uses the hosted endpoint. For a manual connection, set `upload_endpoint` to the complete HTTPS URL.
 
 Headers:
 
@@ -75,7 +75,7 @@ When local privacy controls remove one player from a mixed queued batch, the con
 
 ## POST /v1/profiles/lookup
 
-Configure the complete same-origin HTTPS URL as `profile_endpoint`. The player ID stays in the JSON body rather than appearing in access-log URLs.
+Managed enrollment uses the hosted endpoint. For a manual connection, set `profile_endpoint` to the complete same-origin HTTPS URL. The player ID is carried in the JSON body.
 
 ```json
 { "user_id": "76561198000000001@steam" }
@@ -105,7 +105,7 @@ Configure each badge's reward_id, metric, threshold, label/color and priority in
 
 The connector implements game DNT enforcement, additional local opt-out/approval, and removal of queued contributions. DNT always takes priority. DNT-off normally permits tracking without another allow command; optional additional opt-in can make the local policy stricter. DNT changes observed while connected retire older pending collection IDs. The service must still expose verified account-wide access/export/deletion and collection preference workflows. Authenticate ownership of the player account separately: a server token asserting a user ID must not be sufficient to delete that account's global history.
 
-Propagate account-wide changes to participating connectors, suppress opted-out/deleted players before ingestion and rewards, and prevent old queue retries or restored backups from recreating erased profiles. Local `.statsprivacy off` cannot retract an upload already in progress or erase hosted data. Account-wide preference propagation and history deletion remain launch blockers; this version is for controlled testing with server collection off by default.
+Apply account-wide suppression before ingestion and rewards, and prevent old queue retries or restored backups from recreating erased profiles. Local `.statsprivacy off` governs future collection and pending data on that server. Use the verified account workflow for hosted history.
 
 ## Upgrading from 0.1.0
 

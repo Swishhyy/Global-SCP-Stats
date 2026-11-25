@@ -12,6 +12,7 @@
 *.env
 .build-cache/
 artifacts/
+/tests/
 *.gss
 *.gss.tmp
 privacy.state

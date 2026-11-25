@@ -1,6 +1,6 @@
 # Privacy and security
 
-This is the engineering status and deployment work still needed. It is not a certification of GDPR compliance. Collection is off by default while the service's privacy workflow is unfinished.
+This document describes what the connector handles and the work required for public deployment. An enabled connector starts collecting after startup, subject to player Do Not Track and saved local preferences.
 
 ## Data handled by this connector
 
@@ -10,7 +10,7 @@ This is the engineering status and deployment work still needed. It is not a cer
 | Public server ID, batch ID, batch creation timestamp | Attributes contributions and prevents duplicate processing |
 | Connected playtime, rounds, kills, deaths, escapes | Aggregate statistics; no per-kill victim/attacker relationship is stored |
 | Action-name counters, damage/healing amounts, XP delta | Progression; raw event objects are never serialized |
-| Returned global XP, level, reward IDs, profile revision | Temporary in-memory reward approval for connected players |
+| Returned global XP, level, server lifetime stats, profile revision | Temporary in-memory data for progression and server-owned rewards |
 | Keyed preference marker, local approval/withdrawal, observed game DNT, notice version, change timestamp | Encrypted `privacy.state` file; markers use domain-separated HMAC-SHA-256 instead of raw platform IDs |
 | Local collection ID and contribution ID | Retires pending data after withdrawal and prevents privacy rewrites from duplicating other players' accepted stats |
 
@@ -20,8 +20,8 @@ Identifiers and encrypted data must still be treated as personal data. Encryptio
 
 ## Implemented safeguards
 
-1. Server collection defaults to disabled. Once enabled, the default player policy follows EXILED's `Player.DoNotTrack`: true always blocks collection; false permits collection unless a stronger local opt-out is saved. The property is observed on verification/spawn, before gameplay recording and profile access, and every second on the game thread. Game authentication may require reconnecting for a changed setting to appear. No API hostname or universal token is embedded in the build.
-2. Each server supplies its own API token and independent random 64-byte storage key through environment variables. Neither is written into batches. The configured profile endpoint must share the upload host and port.
+1. The default player policy follows EXILED's `Player.DoNotTrack`. DNT blocks collection even when local approval exists. The connector checks it on verification and spawn, before gameplay recording and profile access, and every second on the game thread. Game authentication may require reconnecting for a changed setting to appear.
+2. Automatic enrollment generates a per-server upload token and a random 64-byte storage key. The connector stores the key with restricted file permissions and encrypts the saved token. Manual deployments can supply credentials through environment variables. The configured profile endpoint must share the upload host and port.
 3. Local payloads use AES-256-CBC with PKCS#7 padding, a fresh random 128-bit IV for every file, and an independent 256-bit HMAC-SHA-256 key. The envelope is `GSS1 || IV || ciphertext || HMAC(header+IV+ciphertext)`. The MAC is checked before decryption. Base64 is used only to transport the key through configuration; it is not the data encryption algorithm.
 4. Writes flush an encrypted temporary file before renaming it into the outbox. The supplied key must authenticate an existing queue before collection can resume. Corruption, wrong keys, and oversized encrypted files are rejected; failed uploads do not silently clear stats.
 5. HTTPS uses the runtime's certificate validation, with no trust bypass. Automatic redirects are refused. Profile IDs are carried in request bodies rather than URLs. Authentication values, response bodies, and raw exception messages are excluded from connector logs.
@@ -33,7 +33,7 @@ Identifiers and encrypted data must still be treated as personal data. Encryptio
 ## Operator responsibilities and boundaries
 
 1. Run the server and API under restricted service accounts. Protect process environments and use host/service secret storage. A server owner or compromised server process can read its own environment and plaintext in memory; this design does not hide secrets from that owner. Encrypting files cannot protect against an attacker who also obtains their key.
-2. Keep storage keys outside the outbox, and protect backups separately. Preserve the original key for both queued data and privacy preferences. Key rotation/re-encryption tooling is not implemented yet. Do not replace a key or reset the preference file to bypass an error; doing so can lose recorded withdrawals. Rotate and revoke API tokens independently.
+2. Restrict access to the connector directory and protect backups separately. Preserve the original storage key for saved credentials, queued data, and privacy preferences. Restoring the original key also preserves recorded withdrawals. Rotate and revoke API tokens independently.
 3. Use supported server/Mono/OS versions, a valid API certificate, and a TLS 1.2-or-newer deployment policy. Apply patching, access auditing, request-size/rate limits, and abuse monitoring. Redact hosting logs and prevent crash dumps or diagnostics from being retained indiscriminately.
 4. Set queue retention and capacity for the real purpose. The 72-hour default is an engineering choice, not a statutory retention period. A full queue keeps newer deltas in memory; a disk failure, full queue at shutdown, or abrupt crash can lose unsaved changes. The queue cap is a batch-count cap, not a fixed byte budget.
 5. Retention runs while the connector is active. Stopped/decommissioned servers need an operational cleanup process for outbox files, secrets, backups, and other copies. Use encrypted disks/backups where deleted blocks or snapshots could remain recoverable.

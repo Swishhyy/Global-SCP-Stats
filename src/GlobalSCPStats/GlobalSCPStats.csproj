@@ -6,10 +6,6 @@
     <GameManagedPath Condition="'$(GameManagedPath)' == '' and '$(OS)' == 'Windows_NT'">$(MSBuildProgramFiles32)/Steam/steamapps/common/SCP Secret Laboratory Dedicated Server/SCPSL_Data/Managed</GameManagedPath>
   </PropertyGroup>
   <ItemGroup>
-    <!-- Compile the shared core into the plugin so EXILED loads one DLL. -->
-    <Compile Include="../GlobalSCPStats.Core/**/*.cs"
-             Exclude="../GlobalSCPStats.Core/bin/**;../GlobalSCPStats.Core/obj/**"
-             LinkBase="Core" />
     <Reference Include="System.Net.Http" />
     <Reference Include="System.Runtime.Serialization" />
     <PackageReference Include="ExMod.Exiled" Version="9.15.2" PrivateAssets="all" ExcludeAssets="runtime" />
